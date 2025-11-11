@@ -113,3 +113,12 @@ class TrainLoraRequest(BaseModel):
     learning_rate: Optional[float] = 1e-4
     additional_args: Optional[List[str]] = None
 
+
+class ComfyPreviewRequest(BaseModel):
+    character_id: str
+    prompt: str
+    negative_prompt: Optional[str] = ""
+    steps: int = 20
+    cfg_scale: float = 7.0
+    seed: Optional[int] = None
+

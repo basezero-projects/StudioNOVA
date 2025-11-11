@@ -8,8 +8,8 @@
 
 ## 1. Overview
 StudioNOVA is a local-first AI character creation and content engine that enables:
-- **LoRA Training** via `kohya_ss`
 - **Image / Video Generation** via `ComfyUI`
+- **LoRA Training** via `kohya_ss`
 - **Built-in Upscaling** (Real-ESRGAN + SD x4)
 - **Web UI & Worker API** for orchestration and future commercialization
 

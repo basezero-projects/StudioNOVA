@@ -17,6 +17,9 @@ export interface Character {
   loraPath?: string | null;
   createdAt: string;
   updatedAt: string;
+  slug?: string;
+  datasetPath?: string;
+  datasetCount?: number;
 }
 
 export interface TrainingJob {

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import generation, jobs, training, upscale
+from .routes import datasets, generation, jobs, training, upscale
 
 app = FastAPI(title="StudioNOVA Worker")
 
@@ -23,4 +23,5 @@ app.include_router(training.router)
 app.include_router(generation.router)
 app.include_router(upscale.router)
 app.include_router(jobs.router)
+app.include_router(datasets.router)
 

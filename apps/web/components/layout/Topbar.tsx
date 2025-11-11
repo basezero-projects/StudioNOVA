@@ -2,22 +2,26 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { Bell, Sparkles } from "lucide-react";
+import { Bell } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 import { APP_NAV_ITEMS } from "@/lib/constants";
 import { AUTH_DISABLED } from "@/lib/config";
 import { DEV_USER } from "@/lib/dev-constants";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { toast } = useToast();
   const [userEmail, setUserEmail] = useState<string | null>(AUTH_DISABLED ? DEV_USER.email : null);
   const [isLoadingUser, setIsLoadingUser] = useState(!AUTH_DISABLED);
+  const [searchTerm, setSearchTerm] = useState("");
   const [isLoggingOut, startLogout] = useTransition();
+  const [isSearching, startSearch] = useTransition();
 
   useEffect(() => {
     if (AUTH_DISABLED) {
@@ -86,6 +90,66 @@ export function Topbar() {
     });
   };
 
+  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = searchTerm.trim();
+    if (!query) {
+      toast({
+        title: "Enter a search term",
+        description: "Search by character name or trigger token.",
+      });
+      return;
+    }
+
+    startSearch(async () => {
+      try {
+        const response = await fetch("/api/characters", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const characters = (await response.json()) as Array<{
+          id: string;
+          name: string;
+          token: string;
+          description?: string | null;
+        }>;
+
+        const lowered = query.toLowerCase();
+        const match = characters.find((character) => {
+          return (
+            character.name.toLowerCase().includes(lowered) ||
+            character.token.toLowerCase().includes(lowered) ||
+            (character.description ?? "").toLowerCase().includes(lowered)
+          );
+        });
+
+        const encoded = encodeURIComponent(query);
+        if (match) {
+          router.push(`/app/characters?search=${encoded}#character-${match.id}`);
+          toast({
+            title: "Character found",
+            description: `Jumped to ${match.name}.`,
+          });
+          setSearchTerm("");
+        } else {
+          router.push(`/app/characters?search=${encoded}`);
+          toast({
+            title: "No direct match",
+            description: "Showing filtered roster instead.",
+          });
+          setSearchTerm("");
+        }
+      } catch (error) {
+        console.error("[topbar] search failed", error);
+        toast({
+          title: "Search failed",
+          description: "Unable to search characters right now.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
   return (
     <header className="flex h-16 w-full items-center justify-between border-b border-border bg-card/70 px-6 backdrop-blur">
       <div className="flex flex-1 items-center gap-4">
@@ -98,16 +162,17 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="hidden items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-sm text-muted-foreground sm:flex">
-          <Sparkles className="h-4 w-4 text-accent" aria-hidden="true" />
-          <span>Mock credits · 284</span>
-        </div>
-
-        <form className="hidden items-center gap-2 sm:flex">
+        <form className="hidden items-center gap-2 sm:flex" onSubmit={handleSearch}>
           <Input
             placeholder="Search characters or jobs"
             className="h-9 w-52 rounded-full border-border bg-background/80 text-sm placeholder:text-muted-foreground/70"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            disabled={isSearching}
           />
+          <Button type="submit" size="sm" variant="outline" disabled={isSearching}>
+            {isSearching ? "Searching…" : "Go"}
+          </Button>
         </form>
 
         <Button variant="ghost" size="icon" className="rounded-full">
@@ -138,3 +203,4 @@ export function Topbar() {
     </header>
   );
 }
+

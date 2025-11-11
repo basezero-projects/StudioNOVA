@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Wand2, Workflow } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +20,14 @@ export default function DashboardHomePage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">View roadmap</Button>
-          <Button>
-            <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
-            New generation
+          <Button variant="outline" asChild>
+            <Link href="/app/roadmap">View roadmap</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/app/generate">
+              <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              New generation
+            </Link>
           </Button>
         </div>
       </div>
@@ -34,8 +40,10 @@ export default function DashboardHomePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">3</p>
-            <p className="text-xs text-muted-foreground">Last trained 2h ago</p>
+            <p className="text-3xl font-semibold">0</p>
+            <p className="text-xs text-muted-foreground">
+              Live tracking planned for later phases.
+            </p>
           </CardContent>
         </Card>
         <Card className="border-none bg-card/80 shadow-sm">
@@ -45,8 +53,10 @@ export default function DashboardHomePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">5</p>
-            <p className="text-xs text-muted-foreground">2 training · 3 generation</p>
+            <p className="text-3xl font-semibold">0</p>
+            <p className="text-xs text-muted-foreground">
+              Queue metrics are not wired in v0.01.
+            </p>
           </CardContent>
         </Card>
         <Card className="border-none bg-card/80 shadow-sm">
@@ -69,6 +79,9 @@ export default function DashboardHomePage() {
                 Idle
               </span>
             </div>
+            <p className="pt-1 text-[11px] text-muted-foreground/70">
+              Engine status is mocked in v0.01; configure real endpoints in Settings later.
+            </p>
           </CardContent>
         </Card>
       </div>

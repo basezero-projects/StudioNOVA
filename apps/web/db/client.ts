@@ -191,6 +191,13 @@ async function memoryQuery<T = unknown>(
       const character = memoryDb.characters.find((row) => row.id === id);
       return makeResult(character ? [{ id: character.id } as T] : []);
     }
+    case normalized.startsWith("SELECT id, name FROM characters WHERE id = $1"): {
+      const [id] = params as [string];
+      const character = memoryDb.characters.find((row) => row.id === id);
+      return makeResult(
+        character ? [{ id: character.id, name: character.name } as T] : []
+      );
+    }
     case normalized.startsWith(
       "INSERT INTO training_jobs (user_id, character_id, status, dataset_path, lora_output_path, log_path) VALUES"
     ): {

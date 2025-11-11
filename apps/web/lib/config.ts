@@ -3,7 +3,13 @@
  * talk directly to FastAPI when needed.
  */
 export function getApiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+  const value = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!value) {
+    throw new Error(
+      "NEXT_PUBLIC_API_BASE_URL is not defined. Set it in your .env before running StudioNOVA."
+    );
+  }
+  return value;
 }
 
 /**

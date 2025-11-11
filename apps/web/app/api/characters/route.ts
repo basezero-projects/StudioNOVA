@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { query } from "@/db/client";
 import { ensureDevUserExists, DEV_USER } from "@/lib/dev-user";
+import { characterSlug, defaultDatasetPath } from "@/lib/character-utils";
 
 function validateCharacterPayload(payload: Record<string, unknown>) {
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
@@ -31,7 +32,18 @@ export async function GET() {
     `
   );
 
-  return NextResponse.json(result.rows);
+  const datasetRoot = process.env.KOHYA_DATASET_ROOT || "datasets";
+
+  const payload = result.rows.map((row) => {
+    const slug = characterSlug(row.name, row.token);
+    return {
+      ...row,
+      slug,
+      datasetPath: defaultDatasetPath(slug, datasetRoot),
+    };
+  });
+
+  return NextResponse.json(payload);
 }
 
 export async function POST(request: NextRequest) {
@@ -53,6 +65,17 @@ export async function POST(request: NextRequest) {
     [DEV_USER.id, parsed.name, parsed.token, parsed.description]
   );
 
-  return NextResponse.json(inserted.rows[0], { status: 201 });
+  const datasetRoot = process.env.KOHYA_DATASET_ROOT || "datasets";
+  const character = inserted.rows[0];
+  const slug = characterSlug(character.name, character.token);
+
+  return NextResponse.json(
+    {
+      ...character,
+      slug,
+      datasetPath: defaultDatasetPath(slug, datasetRoot),
+    },
+    { status: 201 }
+  );
 }
 

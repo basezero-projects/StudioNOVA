@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { APP_NAV_ITEMS } from "@/lib/constants";
 import { AUTH_DISABLED } from "@/lib/config";
-import { DEV_USER } from "@/lib/auth";
+import { DEV_USER } from "@/lib/dev-constants";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -9,15 +9,11 @@ import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 
 import { AUTH_DISABLED } from "@/lib/config";
+import { DEV_USER } from "@/lib/dev-constants";
 
 const SESSION_COOKIE_NAME = "studio_nova_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const encoder = new TextEncoder();
-
-export const DEV_USER = {
-  id: "dev-user-id",
-  email: "dev@studionova.local",
-};
 
 function getAuthSecret(): string {
   const secret = process.env.AUTH_SECRET;

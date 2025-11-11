@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
 
 import { Loader2, Plus, Upload } from "lucide-react";
@@ -19,6 +21,11 @@ type Character = {
 type JobState = {
   jobId: string | null;
   status: string;
+  logPath?: string | null;
+  outputDir?: string | null;
+  outputWeight?: string | null;
+  datasetPath?: string;
+  error?: string;
 };
 
 export default function CharactersPage() {
@@ -96,29 +103,66 @@ export default function CharactersPage() {
   };
 
   const handleTrain = async (characterId: string) => {
+    const datasetPath = window.prompt(
+      "Enter the dataset directory for kohya_ss training:",
+      ""
+    );
+
+    if (!datasetPath) {
+      return;
+    }
+
     setTrainingInFlight(characterId);
 
     try {
       const response = await fetch(`/api/characters/${characterId}/train`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ datasetPath }),
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Unable to queue training job.");
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        setJobStates((prev) => ({
+          ...prev,
+          [characterId]: {
+            jobId: null,
+            status: "error",
+            datasetPath,
+            error: payload.error || "Unable to queue training job.",
+          },
+        }));
+        return;
       }
 
-      const data = (await response.json()) as { jobId: string | null; status: string };
+      const data = (await response.json()) as {
+        jobId: string | null;
+        status: string;
+        logPath?: string | null;
+        outputDir?: string | null;
+        outputWeight?: string | null;
+      };
       setJobStates((prev) => ({
         ...prev,
-        [characterId]: { jobId: data.jobId, status: data.status },
+        [characterId]: {
+          jobId: data.jobId,
+          status: data.status,
+          logPath: data.logPath,
+          outputDir: data.outputDir,
+          outputWeight: data.outputWeight,
+          datasetPath,
+        },
       }));
     } catch (error) {
       console.error("[characters] train failed", error);
       setJobStates((prev) => ({
         ...prev,
-        [characterId]: { jobId: null, status: "error" },
+        [characterId]: {
+          jobId: null,
+          status: "error",
+          datasetPath,
+          error: error instanceof Error ? error.message : "Unable to queue training job.",
+        },
       }));
     } finally {
       setTrainingInFlight(null);
@@ -311,6 +355,34 @@ export default function CharactersPage() {
                           </p>
                           {jobState.jobId ? (
                             <p className="break-all">Job ID: {jobState.jobId}</p>
+                          ) : null}
+                          {jobState.datasetPath ? (
+                            <p className="mt-1">Dataset: {jobState.datasetPath}</p>
+                          ) : null}
+                          {jobState.outputWeight ? (
+                            <p className="mt-1 break-all">
+                              Output: {jobState.outputWeight}
+                            </p>
+                          ) : jobState.outputDir ? (
+                            <p className="mt-1 break-all">Output dir: {jobState.outputDir}</p>
+                          ) : null}
+                          {jobState.logPath ? (
+                            <p className="mt-1 break-all">
+                              Log:{" "}
+                              <a
+                                className="underline"
+                                href={`/api/assets/file?path=${encodeURIComponent(jobState.logPath)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                View log
+                              </a>
+                            </p>
+                          ) : null}
+                          {jobState.error ? (
+                            <p className="mt-1 text-destructive">
+                              Error: {jobState.error}
+                            </p>
                           ) : null}
                         </div>
                       ) : null}

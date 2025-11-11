@@ -1,19 +1,102 @@
 /**
- * Minimal Postgres client helper for StudioNOVA v0.01.
+ * Minimal database helper for StudioNOVA v0.01.
  *
- * Depends on the `pg` package (installed as part of Phase 3) and expects
- * `DATABASE_URL` to be defined in the environment. Future phases can build
- * higher-level repositories on top of this shared helper.
+ * When DATABASE_URL is set, we connect to PostgreSQL via `pg`. When missing
+ * and AUTH_DISABLED is true, we fall back to an in-memory store so local devs
+ * can test flows without running Postgres.
  */
 
 import { Pool, type PoolClient, type QueryResult } from "pg";
 
+import { AUTH_DISABLED } from "@/lib/config";
+import { DEV_USER } from "@/lib/dev-constants";
+
+type MemoryUser = {
+  id: string;
+  email: string;
+  password_hash: string;
+  created_at: string;
+};
+
+type MemoryCharacter = {
+  id: string;
+  user_id: string;
+  name: string;
+  token: string;
+  description: string | null;
+  lora_path: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type MemoryTrainingJob = {
+  id: string;
+  user_id: string;
+  character_id: string;
+  status: string;
+  dataset_path: string | null;
+  lora_output_path: string | null;
+  log_path: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type MemoryGenerationJob = {
+  id: string;
+  user_id: string;
+  character_id: string;
+  type: string;
+  prompt: string;
+  negative_prompt: string | null;
+  settings_json: Record<string, unknown>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type MemoryAsset = {
+  id: string;
+  user_id: string;
+  character_id: string;
+  type: string;
+  file_path: string;
+  width: number | null;
+  height: number | null;
+  is_upscaled: boolean;
+  created_at: string;
+};
+
+const connectionString = process.env.DATABASE_URL;
+const useMemoryStore = !connectionString && AUTH_DISABLED;
+
+const memoryDb = useMemoryStore
+  ? {
+      users: [] as MemoryUser[],
+      characters: [] as MemoryCharacter[],
+      trainingJobs: [] as MemoryTrainingJob[],
+      generationJobs: [] as MemoryGenerationJob[],
+      assets: [] as MemoryAsset[],
+    }
+  : null;
+
+if (memoryDb) {
+  const now = new Date().toISOString();
+  memoryDb.users.push({
+    id: DEV_USER.id,
+    email: DEV_USER.email,
+    password_hash: "",
+    created_at: now,
+  });
+}
+
 let pool: Pool | null = null;
 
 function getPool(): Pool {
-  if (!pool) {
-    const connectionString = process.env.DATABASE_URL;
+  if (useMemoryStore) {
+    throw new Error("In-memory DB does not support direct pool access.");
+  }
 
+  if (!pool) {
     if (!connectionString) {
       throw new Error(
         "DATABASE_URL is not set. Configure it in your environment before using the DB client."
@@ -29,10 +112,219 @@ function getPool(): Pool {
   return pool;
 }
 
+function makeResult<T>(rows: T[]): QueryResult<T> {
+  return {
+    command: "SELECT",
+    rowCount: rows.length,
+    oid: 0,
+    rows,
+    fields: [],
+  };
+}
+
+async function memoryQuery<T = unknown>(
+  text: string,
+  params: unknown[] = []
+): Promise<QueryResult<T>> {
+  if (!memoryDb) {
+    throw new Error("Memory database unavailable.");
+  }
+
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const now = new Date().toISOString();
+
+  switch (true) {
+    case normalized.startsWith("SELECT id FROM users WHERE id = $1"): {
+      const [id] = params as [string];
+      const user = memoryDb.users.find((row) => row.id === id);
+      return makeResult(user ? [{ id: user.id } as T] : []);
+    }
+    case normalized.startsWith("INSERT INTO users"): {
+      const [id, email] = params as [string, string];
+      const existing = memoryDb.users.find((row) => row.id === id || row.email === email);
+      if (!existing) {
+        memoryDb.users.push({
+          id,
+          email,
+          password_hash: "",
+          created_at: now,
+        });
+      }
+      return makeResult([{ id } as T]);
+    }
+    case normalized.startsWith("SELECT id, email FROM users WHERE id = $1"): {
+      const [id] = params as [string];
+      const user = memoryDb.users.find((row) => row.id === id);
+      return makeResult(user ? [{ id: user.id, email: user.email } as T] : []);
+    }
+    case normalized.startsWith("INSERT INTO characters"): {
+      const [userId, name, token, description] = params as [string, string, string, string | null];
+      const character: MemoryCharacter = {
+        id: crypto.randomUUID(),
+        user_id: userId,
+        name,
+        token,
+        description,
+        lora_path: null,
+        created_at: now,
+        updated_at: now,
+      };
+      memoryDb.characters.unshift(character);
+      return makeResult([character as T]);
+    }
+    case normalized.startsWith(
+      "SELECT id, user_id, name, token, description, lora_path, created_at, updated_at FROM characters ORDER BY created_at DESC"
+    ): {
+      const characters = [...memoryDb.characters].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      return makeResult(characters as unknown as T[]);
+    }
+    case normalized.startsWith("SELECT id, user_id, name, token FROM characters"): {
+      const characters = [...memoryDb.characters].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      return makeResult(characters as unknown as T[]);
+    }
+    case normalized.startsWith("SELECT id FROM characters WHERE id = $1"): {
+      const [id] = params as [string];
+      const character = memoryDb.characters.find((row) => row.id === id);
+      return makeResult(character ? [{ id: character.id } as T] : []);
+    }
+    case normalized.startsWith(
+      "INSERT INTO training_jobs (user_id, character_id, status, dataset_path, lora_output_path, log_path) VALUES"
+    ): {
+      const [userId, characterId, status, datasetPath, loraOutputPath, logPath] = params as [
+        string,
+        string,
+        string,
+        string | null,
+        string | null,
+        string | null,
+      ];
+      memoryDb.trainingJobs.push({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        character_id: characterId,
+        status,
+        dataset_path: datasetPath,
+        lora_output_path: loraOutputPath,
+        log_path: logPath,
+        created_at: now,
+        updated_at: now,
+      });
+      return makeResult([]);
+    }
+    case normalized.startsWith(
+      "INSERT INTO training_jobs (user_id, character_id, status) VALUES"
+    ): {
+      const [userId, characterId, status] = params as [string, string, string];
+      memoryDb.trainingJobs.push({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        character_id: characterId,
+        status,
+        dataset_path: null,
+        lora_output_path: null,
+        log_path: null,
+        created_at: now,
+        updated_at: now,
+      });
+      return makeResult([]);
+    }
+    case normalized.startsWith("INSERT INTO generation_jobs"): {
+      const [userId, characterId, type, prompt, negativePrompt, settingsJson, status] = params as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+      ];
+      memoryDb.generationJobs.push({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        character_id: characterId,
+        type,
+        prompt,
+        negative_prompt: negativePrompt,
+        settings_json: JSON.parse(settingsJson),
+        status,
+        created_at: now,
+        updated_at: now,
+      });
+      return makeResult([]);
+    }
+    case normalized.startsWith("INSERT INTO assets"): {
+      const [userId, characterId, filePath] = params as [string, string, string];
+      const asset: MemoryAsset = {
+        id: crypto.randomUUID(),
+        user_id: userId,
+        character_id: characterId,
+        type: "image",
+        file_path: filePath,
+        width: null,
+        height: null,
+        is_upscaled: false,
+        created_at: now,
+      };
+      memoryDb.assets.unshift(asset);
+      return makeResult([asset as T]);
+    }
+    case normalized.startsWith(
+      "SELECT id, user_id, character_id, type, file_path, width, height, is_upscaled, created_at FROM assets ORDER BY created_at DESC"
+    ): {
+      const assets = [...memoryDb.assets].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      return makeResult(assets as unknown as T[]);
+    }
+    case normalized.startsWith(
+      "SELECT id, character_id, file_path, is_upscaled FROM assets WHERE id = $1"
+    ): {
+      const [id] = params as [string];
+      const asset = memoryDb.assets.find((row) => row.id === id);
+      return makeResult(asset ? [{ id: asset.id, character_id: asset.character_id, file_path: asset.file_path, is_upscaled: asset.is_upscaled } as T] : []);
+    }
+    case normalized.startsWith(
+      "UPDATE assets SET file_path = $1, is_upscaled = TRUE WHERE id = $2 RETURNING id, user_id, character_id, type, file_path, width, height, is_upscaled, created_at"
+    ): {
+      const [filePath, id] = params as [string, string];
+      const asset = memoryDb.assets.find((row) => row.id === id);
+      if (!asset) {
+        return makeResult([]);
+      }
+      asset.file_path = filePath;
+      asset.is_upscaled = true;
+      return makeResult([asset as T]);
+    }
+    case normalized.startsWith(
+      "UPDATE characters SET lora_path = $1, updated_at = NOW() WHERE id = $2"
+    ): {
+      const [loraPath, id] = params as [string | null, string];
+      const character = memoryDb.characters.find((row) => row.id === id);
+      if (character) {
+        character.lora_path = loraPath;
+        character.updated_at = now;
+        return makeResult([character as unknown as T]);
+      }
+      return makeResult([]);
+    }
+    default: {
+      throw new Error(`Memory DB does not support query: ${text}`);
+    }
+  }
+}
+
 export async function query<T = unknown>(
   text: string,
   params?: unknown[]
 ): Promise<QueryResult<T>> {
+  if (useMemoryStore) {
+    return memoryQuery<T>(text, params);
+  }
+
   const client = await getPool().connect();
 
   try {
@@ -45,6 +337,14 @@ export async function query<T = unknown>(
 export async function withTransaction<T>(
   handler: (client: PoolClient) => Promise<T>
 ): Promise<T> {
+  if (useMemoryStore) {
+    const client = {
+      query: memoryQuery,
+      release: () => undefined,
+    } as unknown as PoolClient;
+    return handler(client);
+  }
+
   const client = await getPool().connect();
 
   try {

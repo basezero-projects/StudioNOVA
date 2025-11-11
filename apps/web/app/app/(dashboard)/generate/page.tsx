@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
 
 import { Loader2, Send } from "lucide-react";
@@ -15,6 +17,8 @@ type Character = {
 type GenerationResponse = {
   jobId: string | null;
   status: string;
+  imagePath?: string | null;
+  assetId?: string | null;
 } | null;
 
 export default function GeneratePage() {
@@ -99,7 +103,12 @@ export default function GeneratePage() {
         throw new Error(payload.error || "Unable to queue generation job.");
       }
 
-      const data = (await response.json()) as { jobId: string | null; status: string };
+      const data = (await response.json()) as {
+        jobId: string | null;
+        status: string;
+        imagePath?: string | null;
+        assetId?: string | null;
+      };
       setJobResponse(data);
     } catch (error) {
       console.error("[generate] job submission failed", error);
@@ -114,8 +123,7 @@ export default function GeneratePage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Generate</h1>
         <p className="text-sm text-muted-foreground">
-          Craft prompts and send generation jobs to the local worker. Jobs are stubbed but
-          follow the same workflow the real engine will use.
+          Craft prompts and send generation jobs to the local worker. ComfyUI produces real images saved to disk.
         </p>
       </header>
 
@@ -210,8 +218,21 @@ export default function GeneratePage() {
                   Status: <span className="font-semibold">{jobResponse.status}</span>
                 </p>
                 {jobResponse.jobId ? <p className="break-all">Job ID: {jobResponse.jobId}</p> : null}
+                {jobResponse.imagePath ? (
+                  <p className="mt-1">
+                    Output:&nbsp;
+                    <a
+                      className="text-foreground underline"
+                      href={`/api/assets/file?path=${encodeURIComponent(jobResponse.imagePath)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View image
+                    </a>
+                  </p>
+                ) : null}
                 <p className="mt-1">
-                  Use the Jobs tab (coming soon) to poll results via the worker endpoint.
+                  Browse the Gallery tab to inspect stored assets and trigger upscales.
                 </p>
               </div>
             ) : null}

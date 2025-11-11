@@ -27,3 +27,4 @@ export async function ensureDevUserExists() {
   return inserted.rows[0] ?? { id: DEV_USER.id };
 }
 
+export { DEV_USER } from "@/lib/dev-constants";

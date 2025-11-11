@@ -1,0 +1,12 @@
+{
+  "name": "studionova",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm run dev --workspace web"
+  }
+}
+

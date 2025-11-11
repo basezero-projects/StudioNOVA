@@ -7,6 +7,7 @@ import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 
 type Character = {
   id: string;
@@ -22,6 +23,7 @@ type GenerationResponse = {
 } | null;
 
 export default function GeneratePage() {
+  const { toast } = useToast();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
@@ -110,9 +112,20 @@ export default function GeneratePage() {
         assetId?: string | null;
       };
       setJobResponse(data);
+      toast({
+        title: "Generation queued",
+        description: data.imagePath
+          ? "Image saved to gallery."
+          : "Worker will produce an image shortly.",
+      });
     } catch (error) {
       console.error("[generate] job submission failed", error);
       setFormError(error instanceof Error ? error.message : "Unable to queue generation job.");
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Unable to queue generation job.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -180,6 +193,11 @@ export default function GeneratePage() {
                   onChange={(event) => setNegativePrompt(event.target.value)}
                 />
               </label>
+
+              <p className="text-xs text-muted-foreground">
+                Keep uploads and prompts compliant with local laws and personal rights. Generated
+                assets remain on this machine only.
+              </p>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <Input type="number" min={1} placeholder="CFG (coming soon)" className="h-10 rounded-lg" disabled />

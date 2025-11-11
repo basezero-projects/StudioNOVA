@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Loader2, Plus, Upload } from "lucide-react";
+import { Loader2, Plus, ShieldAlert, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+import { useToast } from "@/components/ui/use-toast";
 
 type Character = {
   id: string;
@@ -29,6 +31,7 @@ type JobState = {
 };
 
 export default function CharactersPage() {
+  const { toast } = useToast();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [formState, setFormState] = useState({ name: "", token: "", description: "" });
@@ -94,9 +97,19 @@ export default function CharactersPage() {
       const character = (await response.json()) as Character;
       setCharacters((prev) => [character, ...prev]);
       resetForm();
+      toast({
+        title: "Character created",
+        description: `${character.name} is ready for training.`,
+      });
     } catch (error) {
       console.error("[characters] create failed", error);
       setFormError(error instanceof Error ? error.message : "Unable to create character.");
+      toast({
+        title: "Character creation failed",
+        description:
+          error instanceof Error ? error.message : "Unable to create character.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -109,6 +122,10 @@ export default function CharactersPage() {
     );
 
     if (!datasetPath) {
+      toast({
+        title: "Training cancelled",
+        description: "No dataset directory provided.",
+      });
       return;
     }
 
@@ -132,6 +149,11 @@ export default function CharactersPage() {
             error: payload.error || "Unable to queue training job.",
           },
         }));
+        toast({
+          title: "Training failed",
+          description: payload.error || "Unable to queue training job.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -153,6 +175,10 @@ export default function CharactersPage() {
           datasetPath,
         },
       }));
+      toast({
+        title: "Training queued",
+        description: datasetPath,
+      });
     } catch (error) {
       console.error("[characters] train failed", error);
       setJobStates((prev) => ({
@@ -164,6 +190,11 @@ export default function CharactersPage() {
           error: error instanceof Error ? error.message : "Unable to queue training job.",
         },
       }));
+      toast({
+        title: "Training failed",
+        description: error instanceof Error ? error.message : "Unable to queue training job.",
+        variant: "destructive",
+      });
     } finally {
       setTrainingInFlight(null);
     }
@@ -273,6 +304,13 @@ export default function CharactersPage() {
                 Characters are stored locally and tied to the dev user. Training links to the
                 FastAPI worker stub.
               </p>
+              <div className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
+                <p>
+                  Use images you have rights to, avoid sensitive personal data, and confirm consent
+                  before training on real individuals. StudioNOVA stores datasets locally only.
+                </p>
+              </div>
             </form>
           </CardContent>
         </Card>

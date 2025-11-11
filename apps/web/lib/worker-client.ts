@@ -1,9 +1,6 @@
-const rawBaseUrl =
-  process.env.NEXT_PUBLIC_WORKER_URL ||
-  process.env.WORKER_URL ||
-  "http://localhost:8000";
+import { getApiBaseUrl } from "@/lib/config";
 
-const normalizedBase = rawBaseUrl.replace(/\/$/, "");
+const normalizedBase = getApiBaseUrl().replace(/\/$/, "");
 const WORKER_BASE_URL = `${normalizedBase}/api`;
 
 async function handleResponse(response: Response) {

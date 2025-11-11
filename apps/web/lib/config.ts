@@ -1,3 +1,7 @@
+/**
+ * Base URL for the worker API. Exposed as a public env so the browser can
+ * talk directly to FastAPI when needed.
+ */
 export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 }

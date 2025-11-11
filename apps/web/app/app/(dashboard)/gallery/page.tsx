@@ -7,6 +7,7 @@ import { Loader2, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
 
 type Asset = {
   id: string;
@@ -17,6 +18,7 @@ type Asset = {
 };
 
 export default function GalleryPage() {
+  const { toast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [upscaleTarget, setUpscaleTarget] = useState<string | null>(null);
@@ -65,8 +67,17 @@ export default function GalleryPage() {
           prev.map((entry) => (entry.id === data.asset.id ? data.asset : entry))
         );
       }
+      toast({
+        title: "Upscale complete",
+        description: "The gallery has been updated with the enhanced image.",
+      });
     } catch (error) {
       console.error("[gallery] upscale failed", error);
+      toast({
+        title: "Upscale failed",
+        description: error instanceof Error ? error.message : "Unable to upscale image.",
+        variant: "destructive",
+      });
     } finally {
       setUpscaleTarget(null);
     }

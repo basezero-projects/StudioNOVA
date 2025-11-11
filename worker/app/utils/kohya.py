@@ -34,11 +34,11 @@ class KohyaJob:
     command: List[str]
     process: subprocess.Popen
     log_path: Path
-    log_handle: Optional[IO[str]] = field(default=None, repr=False)
     output_dir: Path
     output_weight: Path
     status: str = "running"
     created_at: float = field(default_factory=time.time)
+    log_handle: Optional[IO[str]] = field(default=None, repr=False)
 
 
 _jobs: Dict[str, KohyaJob] = {}

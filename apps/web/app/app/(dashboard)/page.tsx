@@ -36,7 +36,7 @@ export default function DashboardHomePage() {
         <Card className="border-none bg-card/80 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm text-muted-foreground">
-              Characters ready
+              Models ready
             </CardTitle>
           </CardHeader>
           <CardContent>

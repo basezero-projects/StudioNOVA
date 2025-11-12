@@ -2,14 +2,14 @@ export const ACCENT_COLOR = "#7A5CFF";
 
 export const APP_NAV_ITEMS = [
   {
-    label: "Characters",
-    href: "/app/characters",
+    label: "Models",
+    href: "/app/models",
     description: "Manage LoRA-ready personas and track training progress.",
   },
   {
     label: "Generate",
     href: "/app/generate",
-    description: "Send prompts to ComfyUI using your trained characters.",
+    description: "Send prompts to ComfyUI using your curated models.",
   },
   {
     label: "Gallery",
@@ -23,7 +23,7 @@ export const APP_NAV_ITEMS = [
   },
 ];
 
-export const MOCK_CHARACTERS = [
+export const MOCK_MODELS = [
   {
     id: "char-aurelia",
     name: "Aurelia Nova",
@@ -84,7 +84,7 @@ export const MOCK_ASSETS = [
   {
     id: "asset-01",
     title: "Aurelia · studio lighting test",
-    characterName: "Aurelia Nova",
+    modelName: "Aurelia Nova",
     resolution: "1024 × 1024",
     updatedAt: "Yesterday",
     isUpscaled: true,
@@ -93,7 +93,7 @@ export const MOCK_ASSETS = [
   {
     id: "asset-02",
     title: "Orion · kinetic motion sketch",
-    characterName: "Orion Voss",
+    modelName: "Orion Voss",
     resolution: "768 × 1024",
     updatedAt: "3 hours ago",
     isUpscaled: false,
@@ -102,7 +102,7 @@ export const MOCK_ASSETS = [
   {
     id: "asset-03",
     title: "Celeste · concept sheet",
-    characterName: "Celeste Ada",
+    modelName: "Celeste Ada",
     resolution: "2048 × 2048",
     updatedAt: "Draft",
     isUpscaled: false,
@@ -111,7 +111,7 @@ export const MOCK_ASSETS = [
   {
     id: "asset-04",
     title: "Aurelia · cinematic close-up",
-    characterName: "Aurelia Nova",
+    modelName: "Aurelia Nova",
     resolution: "1536 × 1024",
     updatedAt: "Just now",
     isUpscaled: true,

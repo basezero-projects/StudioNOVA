@@ -11,7 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 type Asset = {
   id: string;
-  character_id: string;
+  model_id: string;
   file_path: string;
   is_upscaled: boolean;
   created_at: string;

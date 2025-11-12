@@ -29,7 +29,7 @@ class UserBase(BaseModel):
     created_at: str
 
 
-class CharacterBase(BaseModel):
+class ModelBase(BaseModel):
     id: str
     user_id: str
     name: str
@@ -43,7 +43,7 @@ class CharacterBase(BaseModel):
 class TrainingJobBase(BaseModel):
     id: str
     user_id: str
-    character_id: str
+    model_id: str
     status: JobStatus
     dataset_path: Optional[str] = None
     lora_output_path: Optional[str] = None
@@ -55,7 +55,7 @@ class TrainingJobBase(BaseModel):
 class GenerationJobBase(BaseModel):
     id: str
     user_id: str
-    character_id: str
+    model_id: str
     type: GenerationType
     prompt: str
     negative_prompt: Optional[str] = None
@@ -69,7 +69,7 @@ class GenerationJobBase(BaseModel):
 class AssetBase(BaseModel):
     id: str
     user_id: str
-    character_id: str
+    model_id: str
     type: GenerationType
     file_path: str
     width: Optional[int] = None
@@ -79,7 +79,7 @@ class AssetBase(BaseModel):
 
 
 class GenerationRequest(BaseModel):
-    character_id: str
+    model_id: str
     prompt: str
     negative_prompt: Optional[str] = ""
     lora_path: Optional[str] = None
@@ -103,7 +103,7 @@ class UpscaleRequest(BaseModel):
 
 
 class TrainLoraRequest(BaseModel):
-    character_id: str
+    model_id: str
     dataset_path: str
     base_model: Optional[str] = None
     output_dir: Optional[str] = None
@@ -115,7 +115,7 @@ class TrainLoraRequest(BaseModel):
 
 
 class ComfyPreviewRequest(BaseModel):
-    character_id: str
+    model_id: str
     prompt: str
     negative_prompt: Optional[str] = ""
     steps: int = 20

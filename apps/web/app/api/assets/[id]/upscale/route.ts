@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const assetResult = await query(
     `
-      SELECT id, character_id, file_path, is_upscaled
+      SELECT id, model_id, file_path, is_upscaled
       FROM assets
       WHERE id = $1
     `,
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const asset = assetResult.rows[0] as {
     id: string;
-    character_id: string;
+    model_id: string;
     file_path: string;
     is_upscaled: boolean;
   };
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         SET file_path = $1,
             is_upscaled = TRUE
         WHERE id = $2
-        RETURNING id, user_id, character_id, type, file_path, width, height, is_upscaled, created_at
+        RETURNING id, user_id, model_id, type, file_path, width, height, is_upscaled, created_at
       `,
       [newPath, asset.id]
     );

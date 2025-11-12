@@ -11,7 +11,7 @@ export async function GET() {
       SELECT
         id,
         user_id,
-        character_id,
+        model_id,
         type,
         file_path,
         width,

@@ -1,4 +1,4 @@
-const FALLBACK_SLUG = "character";
+const FALLBACK_SLUG = "model";
 
 function sanitizeFragment(value: string) {
   return value
@@ -7,7 +7,7 @@ function sanitizeFragment(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function characterSlug(name: string | null | undefined, token: string | null | undefined): string {
+export function modelSlug(name: string | null | undefined, token: string | null | undefined): string {
   const fragments = [name, token]
     .map((fragment) => sanitizeFragment(fragment ?? ""))
     .filter(Boolean);

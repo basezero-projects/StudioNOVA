@@ -22,6 +22,7 @@ class ComfyUIError(RuntimeError):
 COMFYUI_API_URL = os.getenv("COMFYUI_API_URL", "http://localhost:8188").rstrip("/")
 COMFYUI_POLL_INTERVAL = float(os.getenv("COMFYUI_POLL_INTERVAL", "2.0"))
 COMFYUI_POLL_TIMEOUT = float(os.getenv("COMFYUI_POLL_TIMEOUT", "180"))
+COMFYUI_BASE_MODEL = os.getenv("COMFYUI_BASE_MODEL", "sd_xl_base_1.0.safetensors")
 OUTPUT_DIR = Path(
     ensure_output_dir(os.getenv("OUTPUT_DIR", DEFAULT_OUTPUT_DIR))
 )
@@ -178,6 +179,12 @@ def generate_image_workflow(
 ) -> ComfyResult:
     workflow = _load_workflow(GENERATION_WORKFLOW_PATH)
 
+    base_model_value = base_model or COMFYUI_BASE_MODEL
+    if not base_model_value:
+        raise ComfyUIError(
+            "COMFYUI_BASE_MODEL is not configured. Update your worker environment to point to a valid checkpoint filename."
+        )
+
     replacements = {
         "prompt": prompt,
         "negative_prompt": negative_prompt,
@@ -189,7 +196,7 @@ def generate_image_workflow(
         "scheduler": scheduler,
         "width": width,
         "height": height,
-        "base_model": base_model or "",
+        "base_model": base_model_value,
     }
 
     prepared_workflow = _replace_placeholders(workflow, replacements)

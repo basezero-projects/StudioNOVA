@@ -61,7 +61,7 @@ export function Topbar() {
     if (pathname === "/app" || pathname === "/app/") {
       return {
         label: "Overview",
-        description: "Studio status snapshots before diving into characters and jobs.",
+        description: "Studio status snapshots before diving into models and jobs.",
       };
     }
 
@@ -96,18 +96,18 @@ export function Topbar() {
     if (!query) {
       toast({
         title: "Enter a search term",
-        description: "Search by character name or trigger token.",
+        description: "Search by model name or trigger token.",
       });
       return;
     }
 
     startSearch(async () => {
       try {
-        const response = await fetch("/api/characters", { cache: "no-store" });
+        const response = await fetch("/api/models", { cache: "no-store" });
         if (!response.ok) {
           throw new Error(await response.text());
         }
-        const characters = (await response.json()) as Array<{
+        const models = (await response.json()) as Array<{
           id: string;
           name: string;
           token: string;
@@ -115,24 +115,24 @@ export function Topbar() {
         }>;
 
         const lowered = query.toLowerCase();
-        const match = characters.find((character) => {
+        const match = models.find((model) => {
           return (
-            character.name.toLowerCase().includes(lowered) ||
-            character.token.toLowerCase().includes(lowered) ||
-            (character.description ?? "").toLowerCase().includes(lowered)
+            model.name.toLowerCase().includes(lowered) ||
+            model.token.toLowerCase().includes(lowered) ||
+            (model.description ?? "").toLowerCase().includes(lowered)
           );
         });
 
         const encoded = encodeURIComponent(query);
         if (match) {
-          router.push(`/app/characters?search=${encoded}#character-${match.id}`);
+          router.push(`/app/models?search=${encoded}#model-${match.id}`);
           toast({
-            title: "Character found",
+            title: "Model found",
             description: `Jumped to ${match.name}.`,
           });
           setSearchTerm("");
         } else {
-          router.push(`/app/characters?search=${encoded}`);
+          router.push(`/app/models?search=${encoded}`);
           toast({
             title: "No direct match",
             description: "Showing filtered roster instead.",
@@ -143,7 +143,7 @@ export function Topbar() {
         console.error("[topbar] search failed", error);
         toast({
           title: "Search failed",
-          description: "Unable to search characters right now.",
+          description: "Unable to search models right now.",
           variant: "destructive",
         });
       }
@@ -164,7 +164,7 @@ export function Topbar() {
       <div className="flex items-center gap-4">
         <form className="hidden items-center gap-2 sm:flex" onSubmit={handleSearch}>
           <Input
-            placeholder="Search characters or jobs"
+            placeholder="Search models or jobs"
             className="h-9 w-52 rounded-full border-border bg-background/80 text-sm placeholder:text-muted-foreground/70"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}

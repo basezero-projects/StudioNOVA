@@ -8,7 +8,7 @@ export interface User {
   createdAt: string;
 }
 
-export interface Character {
+export interface Model {
   id: string;
   userId: string;
   name: string;
@@ -25,7 +25,7 @@ export interface Character {
 export interface TrainingJob {
   id: string;
   userId: string;
-  characterId: string;
+  modelId: string;
   status: JobStatus;
   datasetPath?: string;
   loraOutputPath?: string | null;
@@ -37,7 +37,7 @@ export interface TrainingJob {
 export interface GenerationJob {
   id: string;
   userId: string;
-  characterId: string;
+  modelId: string;
   type: GenerationType;
   prompt: string;
   negativePrompt?: string;
@@ -51,7 +51,7 @@ export interface GenerationJob {
 export interface Asset {
   id: string;
   userId: string;
-  characterId: string;
+  modelId: string;
   type: "image" | "video";
   filePath: string;
   width?: number | null;

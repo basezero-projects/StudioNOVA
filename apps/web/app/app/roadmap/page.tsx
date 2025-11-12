@@ -22,7 +22,7 @@ export default function RoadmapPage() {
           <div>
             <p className="font-semibold text-foreground">Phases 0–4 · Foundations</p>
             <ul className="list-inside list-disc pl-4">
-              <li>Monorepo scaffolding, mock auth, and character CRUD.</li>
+              <li>Monorepo scaffolding, mock auth, and model CRUD.</li>
               <li>Gallery surface with mocked assets and prompt presets.</li>
               <li>Initial worker stubs plus local dataset guidance.</li>
             </ul>

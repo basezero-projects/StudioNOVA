@@ -5,8 +5,14 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev:web",
-    "dev:web": "npm run dev --workspace web"
+    "clean:next": "node -e \"const fs=require('fs');const path=require('path');const dir=path.resolve('apps/web/.next');fs.rmSync(dir,{recursive:true,force:true});\"",
+    "all": "npm-run-all -p dev:web dev:worker dev:comfy",
+    "dev": "npm-run-all -p dev:web dev:worker dev:comfy",
+    "dev:web": "npm run clean:next && npm run dev --workspace web",
+    "dev:worker": "powershell -NoProfile -Command \"Set-Location 'worker'; if (Test-Path '.venv\\Scripts\\python.exe') { & '.venv\\Scripts\\python.exe' -m uvicorn app.main:app --reload --port 8000 } elseif (Get-Command py -ErrorAction SilentlyContinue) { & py -3 -m uvicorn app.main:app --reload --port 8000 } else { Write-Error 'Python interpreter not found. Activate a venv and try again.'; exit 1 }\"",
+    "dev:comfy": "powershell -NoProfile -Command \"Set-Location 'external/ComfyUI'; if (Test-Path 'venv\\Scripts\\python.exe') { & 'venv\\Scripts\\python.exe' main.py --listen 0.0.0.0 --port 8188 } elseif (Test-Path '.venv\\Scripts\\python.exe') { & '.venv\\Scripts\\python.exe' main.py --listen 0.0.0.0 --port 8188 } elseif (Test-Path '..\\..\\worker\\.venv\\Scripts\\python.exe') { & '..\\..\\worker\\.venv\\Scripts\\python.exe' main.py --listen 0.0.0.0 --port 8188 } elseif (Get-Command py -ErrorAction SilentlyContinue) { & py -3 main.py --listen 0.0.0.0 --port 8188 } else { Write-Warning 'ComfyUI requires Python. Start it manually if needed.' }\""
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
   }
 }
-

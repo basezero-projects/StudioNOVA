@@ -1,6 +1,6 @@
 # StudioNOVA · Database Schema (v0.01)
 
-StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, characters, job orchestration, and generated assets. The schema below is purpose-built for the initial local-first release and intentionally keeps the surface area minimal—no billing, multi-tenant hardening, or audit trails yet.
+StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, models, job orchestration, and generated assets. The schema below is purpose-built for the initial local-first release and intentionally keeps the surface area minimal—no billing, multi-tenant hardening, or audit trails yet.
 
 ---
 
@@ -15,11 +15,11 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 
 **Relationships**
 
-- Referenced by `characters.user_id`, `training_jobs.user_id`, `generation_jobs.user_id`, and `assets.user_id`.
+- Referenced by `models.user_id`, `training_jobs.user_id`, `generation_jobs.user_id`, and `assets.user_id`.
 
 ---
 
-## characters
+## models
 
 | Column      | Type        | Constraints                                                                           |
 | ----------- | ----------- | ------------------------------------------------------------------------------------- |
@@ -34,7 +34,7 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 
 **Relationships**
 
-- Referenced by `training_jobs.character_id`, `generation_jobs.character_id`, and `assets.character_id`.
+- Referenced by `training_jobs.model_id`, `generation_jobs.model_id`, and `assets.model_id`.
 
 ---
 
@@ -44,7 +44,7 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 | ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
 | id               | uuid        | Primary key, `DEFAULT gen_random_uuid()`                                                                    |
 | user_id          | uuid        | `NOT NULL`, `REFERENCES users(id) ON DELETE CASCADE`                                                        |
-| character_id     | uuid        | `NOT NULL`, `REFERENCES characters(id) ON DELETE CASCADE`                                                   |
+| model_id         | uuid        | `NOT NULL`, `REFERENCES models(id) ON DELETE CASCADE`                                                       |
 | status           | text        | `NOT NULL`; constrained at DB level to one of `queued`, `running`, `completed`, `failed`                    |
 | dataset_path     | text        | Nullable                                                                                                    |
 | lora_output_path | text        | Nullable                                                                                                    |
@@ -54,7 +54,7 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 
 **Relationships**
 
-- Links a user to a character-specific training execution. Results feed back into `characters.lora_path`.
+- Links a user to a model-specific training execution. Results feed back into `models.lora_path`.
 
 ---
 
@@ -64,7 +64,7 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 | --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
 | id              | uuid        | Primary key, `DEFAULT gen_random_uuid()`                                                                         |
 | user_id         | uuid        | `NOT NULL`, `REFERENCES users(id) ON DELETE CASCADE`                                                             |
-| character_id    | uuid        | `NOT NULL`, `REFERENCES characters(id) ON DELETE CASCADE`                                                        |
+| model_id        | uuid        | `NOT NULL`, `REFERENCES models(id) ON DELETE CASCADE`                                                            |
 | type            | text        | `NOT NULL`; constrained at DB level to `image` or `video`                                                        |
 | prompt          | text        | `NOT NULL`                                                                                                       |
 | negative_prompt | text        | Nullable                                                                                                         |
@@ -87,7 +87,7 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 | ----------- | ----------- | ------------------------------------------------------------------------------------- |
 | id          | uuid        | Primary key, `DEFAULT gen_random_uuid()`                                              |
 | user_id     | uuid        | `NOT NULL`, `REFERENCES users(id) ON DELETE CASCADE`                                   |
-| character_id| uuid        | `NOT NULL`, `REFERENCES characters(id) ON DELETE CASCADE`                              |
+| model_id    | uuid        | `NOT NULL`, `REFERENCES models(id) ON DELETE CASCADE`                                  |
 | type        | text        | `NOT NULL`; constrained at DB level to `image` or `video`                             |
 | file_path   | text        | `NOT NULL`                                                                            |
 | width       | integer     | Nullable                                                                              |
@@ -98,7 +98,7 @@ StudioNOVA v0.01 uses PostgreSQL as the source of truth for user accounts, chara
 **Relationships**
 
 - Can be linked from `generation_jobs.asset_id`.
-- Scoped to the owning user and character.
+- Scoped to the owning user and model.
 
 ---
 

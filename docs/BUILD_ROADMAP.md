@@ -3,16 +3,16 @@ StudioNOVA · Build Roadmap (v0.01)
 Prepared by: Wesley Cummins
 Date: November 11, 2025
 Status: Authoritative build sequence for StudioNOVA v0.01
-Scope: Practical, dev-style phases for building a local-first AI character studio using ComfyUI + kohya_ss, with a clean web UI and worker service.
+Scope: Practical, dev-style phases for building a local-first AI model studio using ComfyUI + kohya_ss, with a clean web UI and worker service.
 
 StudioNOVA v0.01 =
 Local web app to:
 
-Create characters (LoRA-based).
+Create models (LoRA-based).
 
 Train LoRA models via kohya_ss.
 
-Generate images from those characters via ComfyUI.
+Generate images from those models via ComfyUI.
 
 Optionally upscale results.
 
@@ -88,7 +88,7 @@ Create routes:
 
 /app (dashboard layout)
 
-/app/characters
+/app/models
 
 /app/generate
 
@@ -98,7 +98,7 @@ Create routes:
 
 Shared UI:
 
-App layout with sidebar (Characters, Generate, Gallery, Settings).
+App layout with sidebar (Models, Generate, Gallery, Settings).
 
 Top bar with user placeholder & future credits display.
 
@@ -114,7 +114,7 @@ Public / landing placeholder.
 
 Auth layout stubs for future.
 
-/app layout with sidebar navigation to Characters, Generate, Gallery, Settings.
+/app layout with sidebar navigation to Models, Generate, Gallery, Settings.
 Use only mock data. Do not add APIs, DB calls, or new features beyond this phase. Respect /docs/CURSOR_RULES.md.
 
 Phase 2 · Core Types, Config, and Shared Utilities
@@ -131,7 +131,7 @@ Core concepts:
 
 User
 
-Character
+Model
 
 TrainingJob
 
@@ -159,11 +159,11 @@ No real DB writes yet. Just types & config wiring.
 
 AI Prompt Template
 
-Define shared TypeScript interfaces in /apps/web/src/lib/types.ts and equivalent Python Pydantic models in /worker/app/schemas.py for User, Character, TrainingJob, GenerationJob, Asset. Base them on the v0.01 roadmap and ARCHITECTURE.md. Do not add fields that imply features we have not planned.
+Define shared TypeScript interfaces in /apps/web/src/lib/types.ts and equivalent Python Pydantic models in /worker/app/schemas.py for User, Model, TrainingJob, GenerationJob, Asset. Base them on the v0.01 roadmap and ARCHITECTURE.md. Do not add fields that imply features we have not planned.
 
 Phase 3 · Database & Models
 
-Goal: Real schema for jobs, characters, and assets. Still local dev only.
+Goal: Real schema for jobs, models, and assets. Still local dev only.
 
 Assumption: Use Postgres (Supabase later is trivial).
 
@@ -173,7 +173,7 @@ Create /docs/DB_SCHEMA_v0.01.md (AI can generate) with tables:
 
 users
 
-characters
+models
 
 training_jobs
 
@@ -183,7 +183,7 @@ assets
 
 Minimum fields (v0.01):
 
-characters:
+models:
 
 id, user_id, name, token, description
 
@@ -193,7 +193,7 @@ created_at, updated_at
 
 training_jobs:
 
-id, user_id, character_id
+id, user_id, model_id
 
 status (queued, running, completed, failed)
 
@@ -207,7 +207,7 @@ created_at, updated_at
 
 generation_jobs:
 
-id, user_id, character_id
+id, user_id, model_id
 
 type (image)
 
@@ -221,7 +221,7 @@ created_at, updated_at
 
 assets:
 
-id, user_id, character_id
+id, user_id, model_id
 
 type (image)
 
@@ -231,7 +231,7 @@ created_at
 
 AI Prompt Template
 
-Based on the roadmap, create /docs/DB_SCHEMA_v0.01.md and SQL migration files for a Postgres database under /apps/web/db (or similar) defining users, characters, training_jobs, generation_jobs, and assets. Keep fields minimal and aligned with v0.01. No billing tables yet.
+Based on the roadmap, create /docs/DB_SCHEMA_v0.01.md and SQL migration files for a Postgres database under /apps/web/db (or similar) defining users, models, training_jobs, generation_jobs, and assets. Keep fields minimal and aligned with v0.01. No billing tables yet.
 
 Phase 4 · Auth & Basic User Context
 
@@ -323,15 +323,15 @@ getJobStatus
 
 Update:
 
-/app/characters:
+/app/models:
 
-Form: create character (name, token, desc).
+Form: create model (name, token, desc).
 
 Button: “Train model” → calls POST /train-lora.
 
 /app/generate:
 
-Select character.
+Select model.
 
 Prompt.
 
@@ -347,10 +347,10 @@ Wire /apps/web to the /worker service:
 
 Add a typed API client for train-lora, generate-image, getJobStatus.
 
-Update Characters page to create characters and trigger a training job.
+Update Models page to create models and trigger a training job.
 
 Update Generate page to send generation jobs.
-Use the existing DB schema for persisting characters and jobs if available; if not, simulate persistence in Phase 6 only.
+Use the existing DB schema for persisting models and jobs if available; if not, simulate persistence in Phase 6 only.
 
 Phase 7 · Real ComfyUI Integration (Image Gen + Upscale)
 
@@ -370,7 +370,7 @@ Include:
 
 base model
 
-LoRA path (if character has one)
+LoRA path (if model has one)
 
 prompt / negative prompt
 
@@ -415,7 +415,7 @@ In /worker:
 
 Implement POST /train-lora:
 
-Accept: character_id, dataset location, training settings.
+Accept: model_id, dataset location, training settings.
 
 Use subprocess.run to call python train_network.py under external/kohya_ss.
 
@@ -423,7 +423,7 @@ On success:
 
 Store LoRA file in a known directory.
 
-Update character with lora_path.
+Update model with lora_path.
 
 On failure:
 
@@ -445,7 +445,7 @@ Queued / Running / Completed / Failed.
 
 Once complete:
 
-Character displays “Model trained” badge.
+Model displays “Model trained” badge.
 
 AI Prompt Template
 
@@ -455,7 +455,7 @@ Use subprocess.run to call train_network.py inside external/kohya_ss.
 
 Accept basic params (dataset path, output path, steps, lr).
 
-On success, update the corresponding TrainingJob and Character with lora_path.
+On success, update the corresponding TrainingJob and Model with lora_path.
 
 On failure, store logs.
 Do not edit kohya_ss source.
@@ -472,11 +472,11 @@ Validate:
 
 Prompt not empty.
 
-Character selected before generation.
+Model selected before generation.
 
 Add minimal safety copy:
 
-Text in character creation: confirms user has rights to images and is not training on real people without consent.
+Text in model creation: confirms user has rights to images and is not training on real people without consent.
 
 Clean up layout:
 
@@ -490,9 +490,9 @@ Add consistent loading states for all async calls.
 
 Add toast notifications for success/failure.
 
-Add form validation for character creation and generation.
+Add form validation for model creation and generation.
 
-Add a short notice in character creation about responsible use.
+Add a short notice in model creation about responsible use.
 No new features outside UX and messaging.
 
 Phase 10 · Local Run Script & Docs

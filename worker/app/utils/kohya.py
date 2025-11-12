@@ -55,11 +55,11 @@ def _resolve_dataset_path(dataset_path: str) -> Path:
     return path
 
 
-def _resolve_output_dir(character_id: str, output_dir: Optional[str]) -> Path:
+def _resolve_output_dir(model_id: str, output_dir: Optional[str]) -> Path:
     if output_dir:
         directory = Path(output_dir).expanduser()
     else:
-        directory = DEFAULT_OUTPUT_ROOT / character_id
+        directory = DEFAULT_OUTPUT_ROOT / model_id
     return Path(ensure_output_dir(str(directory)))
 
 
@@ -99,8 +99,8 @@ def launch_kohya_training(request: TrainLoraRequest) -> KohyaJob:
         raise KohyaError(f"KOHYA_PATH directory not found: {KOHYA_ROOT}")
 
     dataset_path = _resolve_dataset_path(request.dataset_path)
-    output_dir = _resolve_output_dir(request.character_id, request.output_dir)
-    output_name = request.output_name or request.character_id
+    output_dir = _resolve_output_dir(request.model_id, request.output_dir)
+    output_name = request.output_name or request.model_id
     output_weight = output_dir / f"{output_name}.safetensors"
     log_path = output_dir / f"train_{output_name}_{int(time.time())}.log"
 

@@ -7,7 +7,7 @@
 ---
 
 ## 1. Overview
-StudioNOVA is a local-first AI character creation and content engine that enables:
+StudioNOVA is a local-first AI model creation and content engine that enables:
 - **Image / Video Generation** via `ComfyUI`
 - **LoRA Training** via `kohya_ss`
 - **Built-in Upscaling** (Real-ESRGAN + SD x4)
@@ -35,7 +35,7 @@ Copy code
 ## 3. Data Flow
 
 1. **Frontend (Next.js)**  
-   - User creates or selects a character.  
+   - User creates or selects a model.  
    - Submits a generation or training request.  
 
 2. **Backend (Next.js API Routes)**  

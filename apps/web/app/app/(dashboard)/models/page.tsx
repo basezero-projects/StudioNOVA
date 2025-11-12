@@ -18,7 +18,7 @@ import {
 } from "@/lib/studio-config";
 import { cn } from "@/lib/utils";
 
-type Character = {
+type Model = {
   id: string;
   name: string;
   token: string;
@@ -28,6 +28,7 @@ type Character = {
   updated_at: string;
   slug: string;
   datasetPath: string;
+  datasetCount?: number;
 };
 
 type JobStatus = "idle" | "queueing" | "queued" | "error";
@@ -72,9 +73,9 @@ function joinDatasetPath(root: string, folder: string): string {
   return `${trimmedRoot}/${folder}`;
 }
 
-export default function CharactersPage() {
+export default function ModelsPage() {
   const { toast } = useToast();
-  const [characters, setCharacters] = useState<Character[]>([]);
+  const [models, setModels] = useState<Model[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [formState, setFormState] = useState({ name: "", token: "", description: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,18 +92,18 @@ export default function CharactersPage() {
   useEffect(() => {
     let active = true;
 
-    async function loadCharacters() {
+    async function loadModels() {
       try {
-        const response = await fetch("/api/characters", { cache: "no-store" });
+        const response = await fetch("/api/models", { cache: "no-store" });
         if (!response.ok) {
           throw new Error(await response.text());
         }
-        const data = (await response.json()) as Character[];
+        const data = (await response.json()) as Model[];
         if (active) {
-          setCharacters(data);
+          setModels(data);
         }
       } catch (error) {
-        console.error("[characters] failed to load", error);
+        console.error("[models] failed to load", error);
       } finally {
         if (active) {
           setIsLoading(false);
@@ -110,7 +111,7 @@ export default function CharactersPage() {
       }
     }
 
-    loadCharacters();
+    loadModels();
     return () => {
       active = false;
     };
@@ -185,7 +186,7 @@ export default function CharactersPage() {
 
   useEffect(() => {
     const root = studioConfig.datasetRoot?.trim();
-    if (!root || characters.length === 0) {
+    if (!root || models.length === 0) {
       return;
     }
 
@@ -193,22 +194,22 @@ export default function CharactersPage() {
       let changed = false;
       const next = { ...prev };
 
-      characters.forEach((character) => {
-        if (next[character.id]) {
+      models.forEach((model) => {
+        if (next[model.id]) {
           return;
         }
-        const currentState = jobStates[character.id] ?? DEFAULT_JOB_STATE;
+        const currentState = jobStates[model.id] ?? DEFAULT_JOB_STATE;
         if (currentState.datasetPath) {
           return;
         }
-        const suggestion = character.datasetPath || joinDatasetPath(root, character.slug);
-        next[character.id] = suggestion;
+        const suggestion = model.datasetPath || joinDatasetPath(root, model.slug);
+        next[model.id] = suggestion;
         changed = true;
       });
 
       return changed ? next : prev;
     });
-  }, [characters, jobStates, studioConfig.datasetRoot]);
+  }, [models, jobStates, studioConfig.datasetRoot]);
 
   const resetForm = () => {
     setFormState({ name: "", token: "", description: "" });
@@ -221,7 +222,7 @@ export default function CharactersPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/characters", {
+      const response = await fetch("/api/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -231,25 +232,28 @@ export default function CharactersPage() {
         }),
       });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Unable to create character.");
+      const payload = (await response.json().catch(() => null)) as
+        | (Model & { error?: string })
+        | null;
+
+      if (!response.ok || !payload) {
+        throw new Error(payload?.error || "Unable to create model.");
       }
 
-      const character = (await response.json()) as Character;
-      setCharacters((prev) => [character, ...prev]);
+      const model = payload as Model;
+      setModels((prev) => [model, ...prev]);
       resetForm();
       toast({
-        title: "Character created",
-        description: `${character.name} is ready for training.`,
+        title: "Model created",
+        description: `${model.name} is ready for training.`,
       });
     } catch (error) {
-      console.error("[characters] create failed", error);
-      setFormError(error instanceof Error ? error.message : "Unable to create character.");
+      console.error("[models] create failed", error);
+      setFormError(error instanceof Error ? error.message : "Unable to create model.");
       toast({
-        title: "Character creation failed",
+        title: "Model creation failed",
         description:
-          error instanceof Error ? error.message : "Unable to create character.",
+          error instanceof Error ? error.message : "Unable to create model.",
         variant: "destructive",
       });
     } finally {
@@ -257,61 +261,88 @@ export default function CharactersPage() {
     }
   };
 
-  const getJobState = (characterId: string): JobState =>
-    jobStates[characterId] ?? DEFAULT_JOB_STATE;
+  const getJobState = (modelId: string): JobState =>
+    jobStates[modelId] ?? DEFAULT_JOB_STATE;
 
   const setJobState = (
-    characterId: string,
+    modelId: string,
     updater: (current: JobState) => JobState
   ) => {
     setJobStates((prev) => {
-      const current = prev[characterId] ?? DEFAULT_JOB_STATE;
+      const current = prev[modelId] ?? DEFAULT_JOB_STATE;
       return {
         ...prev,
-        [characterId]: updater(current),
+        [modelId]: updater(current),
       };
     });
   };
 
-  const filteredCharacters = useMemo(() => {
+  const filteredModels = useMemo(() => {
     if (!searchQuery) {
-      return characters;
+      return models;
     }
 
-    return characters.filter((character) => {
+    return models.filter((model) => {
       const haystack = [
-        character.name,
-        character.token,
-        character.description ?? "",
+        model.name,
+        model.token,
+        model.description ?? "",
       ]
         .join(" ")
         .toLowerCase();
       return haystack.includes(searchQuery);
     });
-  }, [characters, searchQuery]);
+  }, [models, searchQuery]);
 
-  const handleDatasetSelection = (characterId: string, datasetPath: string) => {
+  const handleDatasetSelection = (
+    modelId: string,
+    datasetPath: string,
+    detectedCount?: number
+  ) => {
     setDatasetInputs((prev) => ({
       ...prev,
-      [characterId]: datasetPath,
+      [modelId]: datasetPath,
     }));
 
-    setJobState(characterId, (current) => ({
+    setJobState(modelId, (current) => ({
       ...current,
       datasetPath,
       message: null,
       errorMessage: null,
       status: current.status === "error" ? "idle" : current.status,
     }));
+
+    if (typeof detectedCount === "number" && detectedCount >= 0) {
+      setModels((prev) =>
+        prev.map((model) =>
+          model.id === modelId ? { ...model, datasetCount: detectedCount } : model
+        )
+      );
+    }
   };
 
-  const handleTrain = async (character: Character) => {
+  const handleTrain = async (model: Model, datasetItems: number) => {
+    if (datasetItems <= 0) {
+      setJobState(model.id, (current) => ({
+        ...current,
+        status: "error",
+        errorMessage: "Add at least one dataset image before training.",
+        message: null,
+      }));
+      toast({
+        title: "Dataset required",
+        description: "Generate and save preview images for this model before training.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const rawInput =
-      datasetInputs[character.id] ?? getJobState(character.id).datasetPath ?? "";
+      datasetInputs[model.id] ?? getJobState(model.id).datasetPath ?? "";
     const datasetPath = rawInput.trim();
 
     if (!datasetPath) {
-      setJobState(character.id, (current) => ({
+      setJobState(model.id, (current) => ({
         ...current,
         status: "error",
         errorMessage: "Set a dataset directory before training.",
@@ -325,7 +356,7 @@ export default function CharactersPage() {
       return;
     }
 
-    setJobState(character.id, (current) => ({
+    setJobState(model.id, (current) => ({
       ...current,
       status: "queueing",
       datasetPath,
@@ -334,12 +365,12 @@ export default function CharactersPage() {
     }));
 
     try {
-      const response = await fetch(`/api/characters/${character.id}/train-lora`, {
+      const response = await fetch(`/api/models/${model.id}/train-lora`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           datasetPath,
-          outputName: character.id || character.name,
+          outputName: model.slug || model.id || model.name,
           additionalArgs: [],
         }),
       });
@@ -356,7 +387,7 @@ export default function CharactersPage() {
           payload.message?.toString().trim() ||
           "Worker error. Check worker logs or training config.";
 
-        setJobState(character.id, (current) => ({
+        setJobState(model.id, (current) => ({
           ...current,
           status: "error",
           jobId: null,
@@ -367,40 +398,40 @@ export default function CharactersPage() {
       }
 
       const data = (await response.json()) as {
-        jobId: string | null;
+        job_id: string | null;
         status: string;
         message?: string | null;
-        logPath?: string | null;
-        outputDir?: string | null;
-        outputWeight?: string | null;
+        log_path?: string | null;
+        output_dir?: string | null;
+        output_weight?: string | null;
         command?: string | null;
         dataset_path?: string | null;
       };
 
       const responseDatasetPath = data.dataset_path ?? datasetPath;
 
-      setJobState(character.id, (current) => ({
+      setJobState(model.id, (current) => ({
         ...current,
         status: "queued",
-        jobId: data.jobId ?? null,
+        jobId: data.job_id ?? null,
         datasetPath: responseDatasetPath,
-        logPath: data.logPath ?? null,
-        outputDir: data.outputDir ?? null,
-        outputWeight: data.outputWeight ?? null,
+        logPath: data.log_path ?? null,
+        outputDir: data.output_dir ?? null,
+        outputWeight: data.output_weight ?? null,
         command: data.command ?? null,
         message: data.message ?? "LoRA training job queued.",
         errorMessage: null,
       }));
-      setDatasetInputs((prev) => ({ ...prev, [character.id]: responseDatasetPath }));
+      setDatasetInputs((prev) => ({ ...prev, [model.id]: responseDatasetPath }));
     } catch (error) {
-      console.error("[characters] train failed", error);
+      console.error("[models] train failed", error);
 
       const fallback =
         error instanceof Error
           ? error.message
           : "Worker error. Check worker logs or training config.";
 
-      setJobState(character.id, (current) => ({
+      setJobState(model.id, (current) => ({
         ...current,
         status: "error",
         jobId: null,
@@ -410,24 +441,24 @@ export default function CharactersPage() {
     }
   };
 
-  const sortedCharacters = useMemo(() => {
-    return [...filteredCharacters].sort(
+  const sortedModels = useMemo(() => {
+    return [...filteredModels].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
-  }, [filteredCharacters]);
+  }, [filteredModels]);
 
   return (
     <section className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Characters</h1>
+          <h1 className="text-2xl font-semibold">Models</h1>
           <p className="text-sm text-muted-foreground">
             Create a persona, generate previews on the Generate tab, keep the best shots, then train a LoRA once the dataset looks solid.
           </p>
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground/80">
             <li>1. Generate previews and keep images to build the dataset.</li>
             <li>2. Verify the dataset path below matches the kept images.</li>
-            <li>3. Run Train LoRA to queue a kohya job for this character.</li>
+            <li>3. Run Train LoRA to queue a kohya job for this model.</li>
           </ul>
         </div>
         <div className="flex gap-2">
@@ -435,9 +466,9 @@ export default function CharactersPage() {
             <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
             Import dataset (coming soon)
           </Button>
-          <Button onClick={() => document.getElementById("character-name")?.focus()}>
+          <Button onClick={() => document.getElementById("model-name")?.focus()}>
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            New character
+            New model
           </Button>
         </div>
       </header>
@@ -450,12 +481,12 @@ export default function CharactersPage() {
           <CardContent>
             <form className="grid gap-3 text-sm" onSubmit={handleSubmit}>
               <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="character-name">
+                <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="model-name">
                   Name
                 </label>
                 <Input
-                  id="character-name"
-                  placeholder="Character name"
+                  id="model-name"
+                  placeholder="Model name"
                   className="h-10 rounded-lg"
                   value={formState.name}
                   onChange={(event) =>
@@ -466,11 +497,11 @@ export default function CharactersPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="character-token">
+                <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="model-token">
                   Trigger token
                 </label>
                 <Input
-                  id="character-token"
+                  id="model-token"
                   placeholder="@nova"
                   className="h-10 rounded-lg"
                   value={formState.token}
@@ -482,13 +513,13 @@ export default function CharactersPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="character-description">
+                <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="model-description">
                   Description
                 </label>
                 <textarea
-                  id="character-description"
+                  id="model-description"
                   className="min-h-[96px] w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                  placeholder="Optional notes about the character."
+                  placeholder="Optional notes about the model."
                   value={formState.description}
                   onChange={(event) =>
                     setFormState((prev) => ({ ...prev, description: event.target.value }))
@@ -509,12 +540,12 @@ export default function CharactersPage() {
                     Creating…
                   </>
                 ) : (
-                  "Create character"
+                  "Create model"
                 )}
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                Characters are stored locally and tied to the dev user. Training links to the
+                Models are stored locally and tied to the dev user. Training links to the
                 FastAPI worker stub.
               </p>
               <div className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
@@ -531,70 +562,76 @@ export default function CharactersPage() {
         <div className="space-y-3 rounded-lg border border-border/40 bg-card/60 p-4 text-xs text-muted-foreground">
           <p className="font-semibold text-foreground">Training checklist</p>
           <ul className="list-inside list-disc space-y-2 leading-relaxed">
-            <li>Curate at least 150 images per character for stable LoRA quality.</li>
+            <li>Curate at least 150 images per model for stable LoRA quality.</li>
             <li>Include the trigger token in 30%+ of captions for consistency.</li>
-            <li>Keep datasets organized — one folder per character.</li>
+            <li>Keep datasets organized — one folder per model.</li>
             <li>Phase 8 will wire kohya_ss for real training runs.</li>
           </ul>
         </div>
       </div>
 
       <div className="space-y-3">
-        <h2 className="text-base font-semibold text-muted-foreground">Character roster</h2>
+        <h2 className="text-base font-semibold text-muted-foreground">Model roster</h2>
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading characters…
+            Loading models…
           </div>
-        ) : sortedCharacters.length === 0 ? (
+        ) : sortedModels.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {searchQuery
-              ? `No characters match “${rawSearch}”.`
-              : "No characters yet. Create one using the form above."}
+              ? `No models match “${rawSearch}”.`
+              : "No models yet. Create one using the form above."}
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {sortedCharacters.map((character) => {
-              const jobState = getJobState(character.id);
+            {sortedModels.map((model) => {
+              const jobState = getJobState(model.id);
               const datasetValue =
-                datasetInputs[character.id] ?? jobState.datasetPath ?? "";
+                datasetInputs[model.id] ?? jobState.datasetPath ?? "";
               const isQueueing = jobState.status === "queueing";
               const hasInlineError =
                 jobState.status === "error" && Boolean(jobState.errorMessage);
               const availableFolders = datasetListing?.folders ?? [];
               const detectedRoot = datasetListing?.root ?? studioConfig.datasetRoot;
               const datasetFolder = availableFolders.find(
-                (folder) => folder.name === character.slug
+                (folder) => folder.name === model.slug
               );
-              const datasetCount = datasetFolder?.count ?? 0;
+              const datasetCount =
+                typeof datasetFolder?.count === "number"
+                  ? datasetFolder.count
+                  : typeof model.datasetCount === "number"
+                    ? model.datasetCount
+                    : 0;
+              const canTrain = datasetCount > 0;
 
               return (
                 <Card
-                  key={character.id}
-                  id={`character-${character.id}`}
+                  key={model.id}
+                  id={`model-${model.id}`}
                   className="border-none bg-card/90 shadow-sm"
                 >
                   <CardContent className="space-y-3 py-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold">{character.name}</h3>
-                        <p className="text-xs text-muted-foreground">{character.token}</p>
+                        <h3 className="text-lg font-semibold">{model.name}</h3>
+                        <p className="text-xs text-muted-foreground">{model.token}</p>
                       </div>
                       <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase text-accent-foreground">
-                        {character.lora_path ? "Trained" : "Untrained"}
+                        {model.lora_path ? "Trained" : "Untrained"}
                       </span>
                     </div>
 
-                    {character.description ? (
-                      <p className="text-xs text-muted-foreground">{character.description}</p>
+                    {model.description ? (
+                      <p className="text-xs text-muted-foreground">{model.description}</p>
                     ) : null}
 
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>
-                        Created {new Date(character.created_at).toLocaleDateString()}
+                        Created {new Date(model.created_at).toLocaleDateString()}
                       </span>
                       <span>
-                        Updated {new Date(character.updated_at).toLocaleDateString()}
+                        Updated {new Date(model.updated_at).toLocaleDateString()}
                       </span>
                     </div>
 
@@ -606,7 +643,7 @@ export default function CharactersPage() {
                           onChange={(event) =>
                             setDatasetInputs((prev) => ({
                               ...prev,
-                              [character.id]: event.target.value,
+                              [model.id]: event.target.value,
                             }))
                           }
                           placeholder="e.g. D:/LoRA/ava or /data/ava"
@@ -620,7 +657,7 @@ export default function CharactersPage() {
                           inputMode="text"
                         />
                         <p className="text-[11px] text-muted-foreground/80">
-                          Provide a folder containing captions and images for {character.name}.
+                          Provide a folder containing captions and images for {model.name}.
                         </p>
                         <p className="text-[11px] text-muted-foreground/70">
                           Current dataset items: <span className="font-semibold">{datasetCount}</span>
@@ -631,12 +668,15 @@ export default function CharactersPage() {
                               className="h-9 w-full rounded-lg border border-border bg-background/80 text-xs text-muted-foreground focus:outline-none"
                               defaultValue=""
                               onChange={(event) => {
-                                const folder = event.target.value;
-                                if (!folder) {
+                                const folderName = event.target.value;
+                                if (!folderName) {
                                   return;
                                 }
-                                const fullPath = joinDatasetPath(detectedRoot, folder);
-                                handleDatasetSelection(character.id, fullPath);
+                                const fullPath = joinDatasetPath(detectedRoot, folderName);
+                                const folderMeta = availableFolders.find(
+                                  (folder) => folder.name === folderName
+                                );
+                                handleDatasetSelection(model.id, fullPath, folderMeta?.count);
                                 event.target.value = "";
                               }}
                             >
@@ -662,8 +702,8 @@ export default function CharactersPage() {
                       <Button
                         variant="outline"
                         className="w-full justify-center"
-                        onClick={() => handleTrain(character)}
-                        disabled={isQueueing}
+                        onClick={() => handleTrain(model, datasetCount)}
+                        disabled={isQueueing || !canTrain}
                       >
                         {isQueueing ? (
                           <>
@@ -674,6 +714,11 @@ export default function CharactersPage() {
                           "Train LoRA"
                         )}
                       </Button>
+                      {!canTrain ? (
+                        <p className="text-[11px] text-muted-foreground/80">
+                          Generate and save preview images for this model before training.
+                        </p>
+                      ) : null}
 
                       {jobState.status !== "idle" || jobState.jobId ? (
                         <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">

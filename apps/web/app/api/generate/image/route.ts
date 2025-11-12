@@ -5,7 +5,7 @@ import { ensureDevUserExists, DEV_USER } from "@/lib/dev-user";
 import { requestGenerateImage } from "@/lib/worker-client";
 
 interface BodySchema {
-  characterId?: string;
+  modelId?: string;
   prompt?: string;
   negativePrompt?: string;
   cfgScale?: number;
@@ -20,12 +20,12 @@ interface BodySchema {
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as BodySchema;
-  const characterId = body.characterId?.trim();
+  const modelId = body.modelId?.trim();
   const prompt = body.prompt?.trim();
   const negativePrompt = body.negativePrompt?.trim() ?? "";
 
-  if (!characterId) {
-    return NextResponse.json({ error: "characterId is required." }, { status: 400 });
+  if (!modelId) {
+    return NextResponse.json({ error: "modelId is required." }, { status: 400 });
   }
 
   if (!prompt) {
@@ -34,19 +34,19 @@ export async function POST(request: NextRequest) {
 
   await ensureDevUserExists();
 
-  const character = await query(
-    "SELECT id, lora_path FROM characters WHERE id = $1",
-    [characterId]
+  const model = await query(
+    "SELECT id, lora_path FROM models WHERE id = $1",
+    [modelId]
   );
-  if (!character.rowCount) {
-    return NextResponse.json({ error: "Character not found." }, { status: 404 });
+  if (!model.rowCount) {
+    return NextResponse.json({ error: "Model not found." }, { status: 404 });
   }
 
   const workerResponse = await requestGenerateImage({
-    characterId,
+    modelId,
     prompt,
     negativePrompt,
-    loraPath: character.rows[0].lora_path,
+    loraPath: model.rows[0].lora_path,
     cfgScale: body.cfgScale,
     steps: body.steps,
     seed: body.seed ?? null,
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       `
         INSERT INTO assets (
           user_id,
-          character_id,
+          model_id,
           type,
           file_path,
           width,
@@ -74,9 +74,9 @@ export async function POST(request: NextRequest) {
           is_upscaled
         )
         VALUES ($1, $2, 'image', $3, NULL, NULL, FALSE)
-        RETURNING id, user_id, character_id, type, file_path, width, height, is_upscaled, created_at
+        RETURNING id, user_id, model_id, type, file_path, width, height, is_upscaled, created_at
       `,
-      [DEV_USER.id, characterId, imagePath]
+      [DEV_USER.id, modelId, imagePath]
     );
 
     assetId = assetInsert.rows[0]?.id ?? null;
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     `
       INSERT INTO generation_jobs (
         user_id,
-        character_id,
+        model_id,
         type,
         prompt,
         negative_prompt,
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     `,
     [
       DEV_USER.id,
-      characterId,
+      modelId,
       prompt,
       negativePrompt,
       JSON.stringify({

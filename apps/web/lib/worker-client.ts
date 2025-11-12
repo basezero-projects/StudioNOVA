@@ -58,7 +58,7 @@ export interface TrainLoraResponse {
   command?: string | null;
   message?: string | null;
   detail?: string | null;
-  character_id?: string | null;
+  model_id?: string | null;
   dataset_path?: string | null;
 }
 
@@ -85,7 +85,7 @@ export interface ComfyPreview {
   id: string;
   image_path: string;
   preview_path?: string | null;
-  character_id?: string;
+  model_id?: string;
   is_mock?: boolean;
   metadata?: Record<string, unknown>;
 }
@@ -109,7 +109,7 @@ function resolveWorkerBaseUrl(): string {
 }
 
 export async function requestTrainLora(payload: {
-  characterId: string;
+  modelId: string;
   datasetPath: string;
   baseModel?: string;
   outputDir?: string;
@@ -124,11 +124,11 @@ export async function requestTrainLora(payload: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      character_id: payload.characterId,
+      model_id: payload.modelId,
       dataset_path: payload.datasetPath,
       base_model: payload.baseModel ?? undefined,
       output_dir: payload.outputDir ?? undefined,
-      output_name: payload.outputName ?? payload.characterId,
+      output_name: payload.outputName ?? payload.modelId,
       network_dim: payload.networkDim ?? 16,
       max_train_steps: payload.maxTrainSteps ?? 300,
       learning_rate: payload.learningRate ?? 0.0001,
@@ -141,7 +141,7 @@ export async function requestTrainLora(payload: {
 export const trainLora = requestTrainLora;
 
 export async function requestGenerateImage(payload: {
-  characterId: string;
+  modelId: string;
   prompt: string;
   negativePrompt?: string;
   loraPath?: string | null;
@@ -159,7 +159,7 @@ export async function requestGenerateImage(payload: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      character_id: payload.characterId,
+      model_id: payload.modelId,
       prompt: payload.prompt,
       negative_prompt: payload.negativePrompt || "",
       lora_path: payload.loraPath ?? null,
@@ -205,7 +205,7 @@ export async function fetchJob(jobId: string): Promise<WorkerJobResponse> {
 }
 
 export async function generateComfyPreviews(payload: {
-  characterId: string;
+  modelId: string;
   prompt: string;
   negativePrompt?: string;
   steps?: number;
@@ -217,7 +217,7 @@ export async function generateComfyPreviews(payload: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      character_id: payload.characterId,
+      model_id: payload.modelId,
       prompt: payload.prompt,
       negative_prompt: payload.negativePrompt ?? "",
       steps: payload.steps ?? 30,
@@ -229,18 +229,18 @@ export async function generateComfyPreviews(payload: {
 }
 
 export async function addImageToDataset(payload: {
-  characterId: string;
+  modelId: string;
   datasetPath: string;
   imagePath?: string;
   imageData?: string;
   source?: string;
 }): Promise<DatasetAddResponse> {
   const baseUrl = resolveWorkerBaseUrl();
-  const res = await fetch(`${baseUrl}/characters/${payload.characterId}/dataset/add`, {
+  const res = await fetch(`${baseUrl}/models/${payload.modelId}/dataset/add`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      character_id: payload.characterId,
+      model_id: payload.modelId,
       dataset_path: payload.datasetPath,
       image_path: payload.imagePath ?? undefined,
       image_data: payload.imageData ?? undefined,

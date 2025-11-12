@@ -8,9 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { addImageToDataset, generateComfyPreviews } from "@/lib/worker-client";
+import {
+  getConfigStorageKey,
+  getDefaultConfig,
+  loadConfig,
+  type StudioConfig,
+} from "@/lib/studio-config";
+import { defaultDatasetPath } from "@/lib/model-utils";
 
-type Character = {
+type Model = {
   id: string;
   name: string;
   token: string;
@@ -25,13 +31,14 @@ type PreviewState = {
   previewUrl: string;
   status: "fresh" | "saving" | "saved" | "error";
   errorMessage?: string;
+  isMock: boolean;
 };
 
 export default function GeneratePage() {
   const { toast } = useToast();
-  const [characters, setCharacters] = useState<Character[]>([]);
-  const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [models, setModels] = useState<Model[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(true);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [steps, setSteps] = useState(20);
@@ -40,62 +47,81 @@ export default function GeneratePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<PreviewState[]>([]);
+  const defaults = useMemo(() => getDefaultConfig(), []);
+  const [studioConfig, setStudioConfig] = useState<StudioConfig>(defaults);
 
   useEffect(() => {
     let active = true;
 
-    async function loadCharacters() {
+    async function loadModels() {
       try {
-        const response = await fetch("/api/characters", { cache: "no-store" });
+        const response = await fetch("/api/models", { cache: "no-store" });
         if (!response.ok) {
           throw new Error(await response.text());
         }
-        const data = (await response.json()) as Character[];
+        const data = (await response.json()) as Model[];
         if (active) {
-          setCharacters(data);
+          setModels(data);
           if (data.length > 0) {
-            setSelectedCharacterId((prev) => prev ?? data[0].id);
+            setSelectedModelId((prev) => prev ?? data[0].id);
           }
         }
       } catch (error) {
-        console.error("[generate] failed to load characters", error);
+        console.error("[generate] failed to load models", error);
       } finally {
         if (active) {
-          setIsLoadingCharacters(false);
+          setIsLoadingModels(false);
         }
       }
     }
 
-    loadCharacters();
+    loadModels();
     return () => {
       active = false;
     };
   }, []);
 
-  const characterOptions = useMemo(
+  useEffect(() => {
+    setStudioConfig(loadConfig());
+  }, []);
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === getConfigStorageKey()) {
+        setStudioConfig(loadConfig());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  const modelOptions = useMemo(
     () =>
-      characters.map((character) => ({
-        id: character.id,
-        label: `${character.name} (${character.token})`,
+      models.map((model) => ({
+        id: model.id,
+        label: `${model.name} (${model.token})`,
       })),
-    [characters]
+    [models]
   );
 
-  const selectedCharacter = useMemo(
-    () => characters.find((character) => character.id === selectedCharacterId) ?? null,
-    [characters, selectedCharacterId]
+  const selectedModel = useMemo(
+    () => models.find((model) => model.id === selectedModelId) ?? null,
+    [models, selectedModelId]
   );
+
+  const datasetRootPreference =
+    studioConfig.datasetRoot?.trim() || defaults.datasetRoot || "datasets";
 
   const selectedDatasetPath =
-    selectedCharacter?.datasetPath ??
-    (selectedCharacter?.slug ? `datasets/${selectedCharacter.slug}` : null);
+    (selectedModel?.datasetPath && selectedModel.datasetPath.trim()) ||
+    (selectedModel?.slug ? defaultDatasetPath(selectedModel.slug, datasetRootPreference) : null);
 
   const handleGeneratePreviews = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
 
-    if (!selectedCharacterId) {
-      setFormError("Select a character before generating.");
+    if (!selectedModelId) {
+      setFormError("Select a model before generating.");
       return;
     }
 
@@ -117,14 +143,41 @@ export default function GeneratePage() {
 
     setIsGenerating(true);
     try {
-      const data = await generateComfyPreviews({
-        characterId: selectedCharacterId,
-        prompt,
-        negativePrompt,
-        steps,
-        cfgScale,
-        seed: numericSeed,
+      const response = await fetch(`/api/models/${selectedModelId}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          negativePrompt,
+          steps,
+          cfgScale,
+          seed: numericSeed,
+        }),
       });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+          detail?: string;
+          message?: string;
+        } | null;
+        const errorMessage =
+          payload?.detail?.toString().trim() ||
+          payload?.error?.toString().trim() ||
+          payload?.message?.toString().trim() ||
+          response.statusText ||
+          "Unable to generate previews.";
+        throw new Error(errorMessage);
+      }
+
+      const data = (await response.json()) as {
+        previews?: Array<{
+          id: string;
+          imagePath: string;
+          previewUrl: string;
+          isMock?: boolean;
+        }>;
+      };
 
       if (!data.previews || data.previews.length === 0) {
         toast({
@@ -136,19 +189,29 @@ export default function GeneratePage() {
         return;
       }
 
-      setPreviews(
-        data.previews.map((preview) => ({
-          id: preview.id,
-          imagePath: preview.image_path,
-          previewUrl: `/api/assets/file?path=${encodeURIComponent(preview.image_path)}`,
-          status: "fresh",
-        }))
-      );
+      const mappedPreviews = data.previews.map((preview) => ({
+        id: preview.id,
+        imagePath: preview.imagePath,
+        previewUrl: preview.previewUrl,
+        status: "fresh" as const,
+        isMock: Boolean(preview.isMock),
+      }));
+
+      setPreviews(mappedPreviews);
 
       toast({
         title: "Previews ready",
         description: "Review the images below and keep the good ones for dataset building.",
       });
+
+      if (mappedPreviews.every((preview) => preview.isMock)) {
+        toast({
+          title: "ComfyUI fallback in use",
+          description:
+            "The worker could not reach ComfyUI or the workflow returned an error. Update COMFYUI_WORKFLOW_PATH and confirm the workflow runs in ComfyUI.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("[generate] preview generation failed", error);
       toast({
@@ -162,10 +225,10 @@ export default function GeneratePage() {
   };
 
   const handleKeepPreview = async (preview: PreviewState) => {
-    if (!selectedCharacter) {
+    if (!selectedModel) {
       toast({
-        title: "Select a character first",
-        description: "Choose a character to associate with this dataset image.",
+        title: "Select a model first",
+        description: "Choose a model to associate with this dataset image.",
         variant: "destructive",
       });
       return;
@@ -175,7 +238,7 @@ export default function GeneratePage() {
     if (!datasetPath) {
       toast({
         title: "Dataset path missing",
-        description: "Set a dataset path on the Characters page before keeping previews.",
+        description: "Set a dataset path on the Models page before keeping previews.",
         variant: "destructive",
       });
       return;
@@ -188,12 +251,37 @@ export default function GeneratePage() {
     );
 
     try {
-      const response = await addImageToDataset({
-        characterId: selectedCharacter.id,
-        datasetPath,
-        imagePath: preview.imagePath,
-        source: "comfyui",
+      const response = await fetch(`/api/models/${selectedModel.id}/dataset/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          datasetPath,
+          imagePath: preview.imagePath,
+          source: "comfyui",
+        }),
       });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+          detail?: string;
+          message?: string;
+        } | null;
+        const errorMessage =
+          payload?.detail?.toString().trim() ||
+          payload?.error?.toString().trim() ||
+          payload?.message?.toString().trim() ||
+          response.statusText ||
+          "Unable to copy preview into the dataset.";
+        throw new Error(errorMessage);
+      }
+
+      const data = (await response.json()) as {
+        status: string;
+        dataset_path: string;
+        file_name: string;
+        count: number;
+      };
 
       setPreviews((prev) =>
         prev.map((item) =>
@@ -201,23 +289,25 @@ export default function GeneratePage() {
         )
       );
 
-      const displayDatasetPath = selectedCharacter.datasetPath ?? datasetPath;
+      const resolvedDatasetPath = data.dataset_path ?? datasetPath;
+      const displayDatasetPath =
+        resolvedDatasetPath || selectedModel.datasetPath || datasetPath;
 
-      setCharacters((prev) =>
-        prev.map((character) =>
-          character.id === selectedCharacter.id
+      setModels((prev) =>
+        prev.map((model) =>
+          model.id === selectedModel.id
             ? {
-                ...character,
-                datasetCount: response.count,
+                ...model,
+                datasetCount: data.count,
                 datasetPath: displayDatasetPath,
               }
-            : character
+            : model
         )
       );
 
       toast({
         title: "Preview kept",
-        description: `Saved to ${response.dataset_path}`,
+        description: `Saved to ${data.dataset_path}`,
       });
     } catch (error) {
       console.error("[generate] failed to keep preview", error);
@@ -241,8 +331,8 @@ export default function GeneratePage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Generate previews</h1>
         <p className="text-sm text-muted-foreground">
-          Run lightweight ComfyUI generations to curate a dataset for each character. Keeping an
-          image places it in the character&apos;s dataset folder; models are unchanged until you run
+          Run lightweight ComfyUI generations to curate a dataset for each model. Keeping an
+          image places it in the model&apos;s dataset folder; models are unchanged until you run
           Train LoRA.
         </p>
       </header>
@@ -256,18 +346,18 @@ export default function GeneratePage() {
             <form className="space-y-4" onSubmit={handleGeneratePreviews}>
               <label className="flex flex-col gap-2">
                 <span className="text-xs font-semibold uppercase text-muted-foreground">
-                  Character
+                  Model
                 </span>
                 <select
                   className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"
-                  value={selectedCharacterId ?? ""}
-                  onChange={(event) => setSelectedCharacterId(event.target.value)}
-                  disabled={isLoadingCharacters || characters.length === 0}
+                  value={selectedModelId ?? ""}
+                  onChange={(event) => setSelectedModelId(event.target.value)}
+                  disabled={isLoadingModels || models.length === 0}
                 >
-                  {characterOptions.length === 0 ? (
-                    <option value="">No characters available</option>
+                  {modelOptions.length === 0 ? (
+                    <option value="">No models available</option>
                   ) : (
-                    characterOptions.map((option) => (
+                    modelOptions.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.label}
                       </option>
@@ -343,14 +433,14 @@ export default function GeneratePage() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Use “Keep preview” below to add an image to the character&apos;s dataset folder.
+                Use “Keep preview” below to add an image to the model&apos;s dataset folder.
                 Train LoRA only after you have kept enough consistent examples.
               </p>
               {selectedDatasetPath ? (
                 <p className="text-[11px] text-muted-foreground/80">
                   Dataset target: <span className="font-semibold">{selectedDatasetPath}</span>
-                  {typeof selectedCharacter.datasetCount === "number"
-                    ? ` · ${selectedCharacter.datasetCount} items`
+                  {typeof selectedModel?.datasetCount === "number"
+                    ? ` · ${selectedModel.datasetCount} items`
                     : null}
                 </p>
               ) : null}
@@ -364,7 +454,7 @@ export default function GeneratePage() {
               <Button
                 type="submit"
                 className="ml-auto flex min-w-[200px] items-center justify-center bg-[color:var(--accent)] hover:bg-[color:var(--accent)]/90"
-                disabled={isGenerating || characters.length === 0}
+                disabled={isGenerating || models.length === 0}
               >
                 {isGenerating ? (
                   <>
@@ -391,13 +481,18 @@ export default function GeneratePage() {
                       key={preview.id}
                       className="overflow-hidden rounded-lg border border-border/60 bg-muted/15"
                     >
-                      <div className="aspect-square w-full overflow-hidden bg-background">
+                      <a
+                        href={preview.previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block aspect-square w-full overflow-hidden bg-background transition-opacity hover:opacity-90"
+                      >
                         <img
                           src={preview.previewUrl}
                           alt="Preview"
                           className="h-full w-full object-cover"
                         />
-                      </div>
+                      </a>
                       <div className="space-y-2 p-3 text-xs text-muted-foreground">
                         <p className="truncate">
                           {preview.status === "saved"
@@ -406,6 +501,8 @@ export default function GeneratePage() {
                             ? "Saving to dataset…"
                             : preview.status === "error"
                             ? preview.errorMessage ?? "Failed to save preview."
+                            : preview.isMock
+                            ? "Mock preview from worker fallback. Configure ComfyUI to see real renders."
                             : "Review this image before keeping it."}
                         </p>
                         <Button
@@ -415,7 +512,8 @@ export default function GeneratePage() {
                           disabled={
                             preview.status === "saving" ||
                             preview.status === "saved" ||
-                            !selectedCharacterId
+                            !selectedModelId ||
+                            preview.isMock
                           }
                           onClick={() => handleKeepPreview(preview)}
                         >
@@ -447,13 +545,13 @@ export default function GeneratePage() {
               </p>
               <p className="font-semibold text-foreground pt-2">Dataset goals</p>
               <ul className="list-inside list-disc space-y-1">
-                <li>20–50 curated images per character is a solid starting point.</li>
+                <li>20–50 curated images per model is a solid starting point.</li>
                 <li>Mix close-ups and full-body shots with the trigger token in captions.</li>
                 <li>Keep the dataset folder tidy—only the filtered previews should remain.</li>
               </ul>
               <p className="font-semibold text-foreground pt-2">Next step</p>
               <p>
-                Once happy with the dataset, head back to Characters and run Train LoRA to queue a
+                Once happy with the dataset, head back to Models and run Train LoRA to queue a
                 kohya job.
               </p>
             </CardContent>

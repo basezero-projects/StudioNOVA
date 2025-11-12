@@ -11,10 +11,10 @@ export default function Home() {
         </span>
         <div className="space-y-4">
           <h1 className="text-pretty text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-            Local-first AI character creation, training, and generation.
+            Local-first AI model creation, training, and generation.
           </h1>
           <p className="mx-auto max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Manage LoRA-ready characters, train with kohya_ss, and generate assets
+            Manage LoRA-ready models, train with kohya_ss, and generate assets
             with ComfyUI&mdash;all from a unified studio experience designed for
             creators who stay in control of their workflows.
           </p>

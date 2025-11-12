@@ -1,0 +1,47 @@
+{
+  "0": {
+    "inputs": {
+      "model_name": "4x-UltraSharp.pth"
+    },
+    "class_type": "UpscaleModelLoader"
+  },
+  "1": {
+    "inputs": {
+      "image": "{{image_path}}"
+    },
+    "class_type": "LoadImage"
+  },
+  "2": {
+    "inputs": {
+      "image": [
+        [
+          "1",
+          0
+        ],
+        "IMAGE"
+      ],
+      "model": [
+        [
+          "0",
+          0
+        ],
+        "UPSCALE_MODEL"
+      ],
+      "tile_size": "{{tile_size}}",
+      "upscale_factor": "{{upscale_factor}}"
+    },
+    "class_type": "ImageUpscaleWithModel"
+  },
+  "3": {
+    "inputs": {
+      "images": [
+        [
+          "2",
+          0
+        ],
+        "IMAGE"
+      ]
+    },
+    "class_type": "PreviewImage"
+  }
+}

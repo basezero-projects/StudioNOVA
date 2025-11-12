@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { query } from "@/db/client";
 import { ensureDevUserExists, DEV_USER } from "@/lib/dev-user";
-import { characterSlug, defaultDatasetPath } from "@/lib/character-utils";
+import { modelSlug, defaultDatasetPath } from "@/lib/model-utils";
 import {
   trainLora,
   WorkerRequestError,
@@ -30,34 +30,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const body = (await request.json().catch(() => ({}))) as TrainRequestBody;
   const datasetPath = body.datasetPath?.trim();
 
-  if (!datasetPath) {
-    return NextResponse.json(
-      { detail: "datasetPath is required to start training." },
-      { status: 400 }
-    );
-  }
-
   await ensureDevUserExists();
 
-  const characterResult = await query("SELECT id, name, token FROM characters WHERE id = $1", [
-    id,
-  ]);
+  const modelResult = await query("SELECT id, name, token FROM models WHERE id = $1", [id]);
 
-  const characterRow = characterResult.rows[0] ?? null;
-  const characterName = characterRow?.name ?? body.outputName ?? id;
-  const characterSlugValue = characterSlug(characterRow?.name, characterRow?.token ?? characterName);
+  const modelRow = modelResult.rows[0] ?? null;
   const datasetRoot = process.env.KOHYA_DATASET_ROOT || "datasets";
-  const defaultPath = defaultDatasetPath(characterSlugValue, datasetRoot);
+  const fallbackName = body.outputName ?? modelRow?.name ?? id;
+  const slug = modelSlug(modelRow?.name ?? fallbackName, modelRow?.token ?? fallbackName);
+  const defaultPath = defaultDatasetPath(slug, datasetRoot);
   const resolvedDatasetPath = datasetPath || defaultPath;
+
+  if (!modelRow && !datasetPath) {
+    return NextResponse.json({ detail: "Model not found." }, { status: 404 });
+  }
 
   let workerResponse: TrainLoraResponse;
   try {
     workerResponse = await trainLora({
-      characterId: id,
+      modelId: id,
       datasetPath: resolvedDatasetPath,
       baseModel: body.baseModel ?? undefined,
       outputDir: body.outputDir ?? undefined,
-      outputName: body.outputName ?? characterName,
+      outputName: body.outputName ?? modelRow?.name ?? id,
       networkDim: body.networkDim ?? undefined,
       maxTrainSteps: body.maxTrainSteps ?? undefined,
       learningRate: body.learningRate ?? undefined,
@@ -81,13 +76,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const logPath: string | null = workerResponse.log_path ?? null;
   const command = workerResponse.command ?? null;
   const message =
-    workerResponse.message ?? "Mock LoRA training job queued for character.";
+    workerResponse.message ?? "Mock LoRA training job queued for model.";
 
   await query(
     `
       INSERT INTO training_jobs (
         user_id,
-        character_id,
+        model_id,
         status,
         dataset_path,
         lora_output_path,
@@ -101,7 +96,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (outputPath) {
     await query(
       `
-        UPDATE characters
+        UPDATE models
         SET lora_path = $1,
             updated_at = NOW()
         WHERE id = $2
@@ -114,7 +109,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     status: workerStatus,
     job_id: workerResponse.job_id ?? null,
     message,
-    character_id: id,
+    model_id: id,
     log_path: logPath,
     output_dir: workerResponse.output_dir ?? null,
     output_weight: workerResponse.output_weight ?? null,

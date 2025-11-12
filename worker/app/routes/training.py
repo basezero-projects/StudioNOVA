@@ -22,7 +22,7 @@ CONFIG_ERROR_HINTS: Final = (
 )
 RUNTIME_ERROR_HINTS: Final = ("failed to start kohya_ss",)
 DATASET_ERROR_HINTS: Final = ("dataset path does not exist",)
-SUCCESS_MESSAGE: Final = "Mock LoRA training job queued for character."
+SUCCESS_MESSAGE: Final = "Mock LoRA training job queued for model."
 
 
 def _resolve_error(message: str) -> Tuple[int, str]:
@@ -69,13 +69,13 @@ def train_lora(payload: TrainLoraRequest):
         status_code, detail = _resolve_error(message)
         logger.exception(
             "kohya_ss training launch failed",
-            extra={"character_id": request_data.character_id},
+            extra={"model_id": request_data.model_id},
         )
         raise HTTPException(status_code=status_code, detail=detail) from exc
 
     logger.info(
         "Queued kohya_ss training job",
-        extra={"job_id": job.job_id, "character_id": request_data.character_id},
+        extra={"job_id": job.job_id, "model_id": request_data.model_id},
     )
 
     return {
@@ -86,7 +86,7 @@ def train_lora(payload: TrainLoraRequest):
         "output_dir": str(job.output_dir),
         "output_weight": str(job.output_weight),
         "command": " ".join(job.command),
-        "character_id": request_data.character_id,
+        "model_id": request_data.model_id,
         "dataset_path": request_data.dataset_path,
     }
 

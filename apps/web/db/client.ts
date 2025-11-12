@@ -18,7 +18,7 @@ type MemoryUser = {
   created_at: string;
 };
 
-type MemoryCharacter = {
+type MemoryModel = {
   id: string;
   user_id: string;
   name: string;
@@ -32,7 +32,7 @@ type MemoryCharacter = {
 type MemoryTrainingJob = {
   id: string;
   user_id: string;
-  character_id: string;
+  model_id: string;
   status: string;
   dataset_path: string | null;
   lora_output_path: string | null;
@@ -44,7 +44,7 @@ type MemoryTrainingJob = {
 type MemoryGenerationJob = {
   id: string;
   user_id: string;
-  character_id: string;
+  model_id: string;
   type: string;
   prompt: string;
   negative_prompt: string | null;
@@ -57,7 +57,7 @@ type MemoryGenerationJob = {
 type MemoryAsset = {
   id: string;
   user_id: string;
-  character_id: string;
+  model_id: string;
   type: string;
   file_path: string;
   width: number | null;
@@ -72,7 +72,7 @@ const useMemoryStore = !connectionString && AUTH_DISABLED;
 const memoryDb = useMemoryStore
   ? {
       users: [] as MemoryUser[],
-      characters: [] as MemoryCharacter[],
+      models: [] as MemoryModel[],
       trainingJobs: [] as MemoryTrainingJob[],
       generationJobs: [] as MemoryGenerationJob[],
       assets: [] as MemoryAsset[],
@@ -157,9 +157,9 @@ async function memoryQuery<T = unknown>(
       const user = memoryDb.users.find((row) => row.id === id);
       return makeResult(user ? [{ id: user.id, email: user.email } as T] : []);
     }
-    case normalized.startsWith("INSERT INTO characters"): {
+    case normalized.startsWith("INSERT INTO models"): {
       const [userId, name, token, description] = params as [string, string, string, string | null];
-      const character: MemoryCharacter = {
+      const model: MemoryModel = {
         id: crypto.randomUUID(),
         user_id: userId,
         name,
@@ -169,39 +169,46 @@ async function memoryQuery<T = unknown>(
         created_at: now,
         updated_at: now,
       };
-      memoryDb.characters.unshift(character);
-      return makeResult([character as T]);
+      memoryDb.models.unshift(model);
+      return makeResult([model as T]);
     }
     case normalized.startsWith(
-      "SELECT id, user_id, name, token, description, lora_path, created_at, updated_at FROM characters ORDER BY created_at DESC"
+      "SELECT id, user_id, name, token, description, lora_path, created_at, updated_at FROM models ORDER BY created_at DESC"
     ): {
-      const characters = [...memoryDb.characters].sort(
+      const rows = [...memoryDb.models].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-      return makeResult(characters as unknown as T[]);
+      return makeResult(rows as unknown as T[]);
     }
-    case normalized.startsWith("SELECT id, user_id, name, token FROM characters"): {
-      const characters = [...memoryDb.characters].sort(
+    case normalized.startsWith(
+      "SELECT id, user_id, name, token FROM models ORDER BY created_at DESC"
+    ): {
+      const rows = [...memoryDb.models].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-      return makeResult(characters as unknown as T[]);
+      return makeResult(rows as unknown as T[]);
     }
-    case normalized.startsWith("SELECT id FROM characters WHERE id = $1"): {
+    case normalized.startsWith("SELECT id FROM models WHERE id = $1"): {
       const [id] = params as [string];
-      const character = memoryDb.characters.find((row) => row.id === id);
-      return makeResult(character ? [{ id: character.id } as T] : []);
+      const model = memoryDb.models.find((row) => row.id === id);
+      return makeResult(model ? [{ id: model.id } as T] : []);
     }
-    case normalized.startsWith("SELECT id, name FROM characters WHERE id = $1"): {
+    case normalized.startsWith("SELECT id, name FROM models WHERE id = $1"): {
       const [id] = params as [string];
-      const character = memoryDb.characters.find((row) => row.id === id);
+      const model = memoryDb.models.find((row) => row.id === id);
+      return makeResult(model ? [{ id: model.id, name: model.name } as T] : []);
+    }
+    case normalized.startsWith("SELECT id, name, token FROM models WHERE id = $1"): {
+      const [id] = params as [string];
+      const model = memoryDb.models.find((row) => row.id === id);
       return makeResult(
-        character ? [{ id: character.id, name: character.name } as T] : []
+        model ? [{ id: model.id, name: model.name, token: model.token } as T] : []
       );
     }
     case normalized.startsWith(
-      "INSERT INTO training_jobs (user_id, character_id, status, dataset_path, lora_output_path, log_path) VALUES"
+      "INSERT INTO training_jobs (user_id, model_id, status, dataset_path, lora_output_path, log_path) VALUES"
     ): {
-      const [userId, characterId, status, datasetPath, loraOutputPath, logPath] = params as [
+      const [userId, modelId, status, datasetPath, loraOutputPath, logPath] = params as [
         string,
         string,
         string,
@@ -212,7 +219,7 @@ async function memoryQuery<T = unknown>(
       memoryDb.trainingJobs.push({
         id: crypto.randomUUID(),
         user_id: userId,
-        character_id: characterId,
+        model_id: modelId,
         status,
         dataset_path: datasetPath,
         lora_output_path: loraOutputPath,
@@ -223,13 +230,13 @@ async function memoryQuery<T = unknown>(
       return makeResult([]);
     }
     case normalized.startsWith(
-      "INSERT INTO training_jobs (user_id, character_id, status) VALUES"
+      "INSERT INTO training_jobs (user_id, model_id, status) VALUES"
     ): {
-      const [userId, characterId, status] = params as [string, string, string];
+      const [userId, modelId, status] = params as [string, string, string];
       memoryDb.trainingJobs.push({
         id: crypto.randomUUID(),
         user_id: userId,
-        character_id: characterId,
+        model_id: modelId,
         status,
         dataset_path: null,
         lora_output_path: null,
@@ -239,9 +246,8 @@ async function memoryQuery<T = unknown>(
       });
       return makeResult([]);
     }
-    case normalized.startsWith("INSERT INTO generation_jobs"): {
-      const [userId, characterId, type, prompt, negativePrompt, settingsJson, status] = params as [
-        string,
+    case normalized.startsWith("INSERT INTO generation_jobs "): {
+      const [userId, modelId, prompt, negativePrompt, settingsJson, status] = params as [
         string,
         string,
         string,
@@ -252,8 +258,8 @@ async function memoryQuery<T = unknown>(
       memoryDb.generationJobs.push({
         id: crypto.randomUUID(),
         user_id: userId,
-        character_id: characterId,
-        type,
+        model_id: modelId,
+        type: "image",
         prompt,
         negative_prompt: negativePrompt,
         settings_json: JSON.parse(settingsJson),
@@ -264,11 +270,11 @@ async function memoryQuery<T = unknown>(
       return makeResult([]);
     }
     case normalized.startsWith("INSERT INTO assets"): {
-      const [userId, characterId, filePath] = params as [string, string, string];
+      const [userId, modelId, filePath] = params as [string, string, string];
       const asset: MemoryAsset = {
         id: crypto.randomUUID(),
         user_id: userId,
-        character_id: characterId,
+        model_id: modelId,
         type: "image",
         file_path: filePath,
         width: null,
@@ -280,7 +286,7 @@ async function memoryQuery<T = unknown>(
       return makeResult([asset as T]);
     }
     case normalized.startsWith(
-      "SELECT id, user_id, character_id, type, file_path, width, height, is_upscaled, created_at FROM assets ORDER BY created_at DESC"
+      "SELECT id, user_id, model_id, type, file_path, width, height, is_upscaled, created_at FROM assets ORDER BY created_at DESC"
     ): {
       const assets = [...memoryDb.assets].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -288,14 +294,14 @@ async function memoryQuery<T = unknown>(
       return makeResult(assets as unknown as T[]);
     }
     case normalized.startsWith(
-      "SELECT id, character_id, file_path, is_upscaled FROM assets WHERE id = $1"
+      "SELECT id, model_id, file_path, is_upscaled FROM assets WHERE id = $1"
     ): {
       const [id] = params as [string];
       const asset = memoryDb.assets.find((row) => row.id === id);
-      return makeResult(asset ? [{ id: asset.id, character_id: asset.character_id, file_path: asset.file_path, is_upscaled: asset.is_upscaled } as T] : []);
+      return makeResult(asset ? [{ id: asset.id, model_id: asset.model_id, file_path: asset.file_path, is_upscaled: asset.is_upscaled } as T] : []);
     }
     case normalized.startsWith(
-      "UPDATE assets SET file_path = $1, is_upscaled = TRUE WHERE id = $2 RETURNING id, user_id, character_id, type, file_path, width, height, is_upscaled, created_at"
+      "UPDATE assets SET file_path = $1, is_upscaled = TRUE WHERE id = $2 RETURNING id, user_id, model_id, type, file_path, width, height, is_upscaled, created_at"
     ): {
       const [filePath, id] = params as [string, string];
       const asset = memoryDb.assets.find((row) => row.id === id);
@@ -306,15 +312,13 @@ async function memoryQuery<T = unknown>(
       asset.is_upscaled = true;
       return makeResult([asset as T]);
     }
-    case normalized.startsWith(
-      "UPDATE characters SET lora_path = $1, updated_at = NOW() WHERE id = $2"
-    ): {
+    case normalized.startsWith("UPDATE models SET lora_path = $1, updated_at = NOW() WHERE id = $2"): {
       const [loraPath, id] = params as [string | null, string];
-      const character = memoryDb.characters.find((row) => row.id === id);
-      if (character) {
-        character.lora_path = loraPath;
-        character.updated_at = now;
-        return makeResult([character as unknown as T]);
+      const model = memoryDb.models.find((row) => row.id === id);
+      if (model) {
+        model.lora_path = loraPath;
+        model.updated_at = now;
+        return makeResult([model as unknown as T]);
       }
       return makeResult([]);
     }

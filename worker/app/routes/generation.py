@@ -1,7 +1,8 @@
-import base64
 import logging
 import os
 from pathlib import Path
+import struct
+import zlib
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
@@ -14,12 +15,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["generation"])
 
-PREVIEW_PLACEHOLDER = (
-    "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAJ0lEQVR4nO3BMQEAAADCoPdPbQ43oAAAAAAAAAAA"
-    "AACwOgGFAAGX4UBQAAAAAASUVORK5CYII="
-)
-
-
 def _preview_directory() -> Path:
     base = ensure_output_dir(os.getenv("OUTPUT_DIR", "storage/results"))
     directory = Path(base) / "previews"
@@ -27,8 +22,36 @@ def _preview_directory() -> Path:
     return directory
 
 
-def _write_preview_image(destination: Path) -> None:
-    destination.write_bytes(base64.b64decode(PREVIEW_PLACEHOLDER))
+def _png_chunk(tag: bytes, data: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(data))
+        + tag
+        + data
+        + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    )
+
+
+def _write_preview_image(destination: Path, prompt: str) -> None:
+    width = 512
+    height = 512
+    seed = abs(hash(prompt)) % 0xFFFFFF
+    base_r = 50 + (seed & 0x7F)
+    base_g = 80 + ((seed >> 7) & 0x7F)
+    base_b = 110 + ((seed >> 14) & 0x7F)
+
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        for x in range(width):
+            r = (base_r + (x * 5 // width)) % 256
+            g = (base_g + (y * 5 // height)) % 256
+            b = (base_b + ((x + y) * 3 // (width + height))) % 256
+            raw.extend((r, g, b))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    idat = zlib.compress(bytes(raw), level=6)
+    png_data = b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", idat) + _png_chunk(b"IEND", b"")
+    destination.write_bytes(png_data)
 
 
 @router.post("/generate-image")
@@ -65,7 +88,7 @@ def generate_image(payload: GenerationRequest):
 def generate_comfy_preview(payload: ComfyPreviewRequest):
     logger.info(
         "Received comfy preview request",
-        extra={"character_id": payload.character_id, "prompt": payload.prompt},
+        extra={"model_id": payload.model_id, "prompt": payload.prompt},
     )
 
     preview_dir = _preview_directory()
@@ -99,7 +122,7 @@ def generate_comfy_preview(payload: ComfyPreviewRequest):
     if image_path is None:
         image_path = preview_dir / f"{preview_id}.png"
         try:
-            _write_preview_image(image_path)
+            _write_preview_image(image_path, payload.prompt)
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Failed to write preview placeholder")
             raise HTTPException(status_code=500, detail="Failed to create preview image.") from exc
@@ -109,7 +132,7 @@ def generate_comfy_preview(payload: ComfyPreviewRequest):
             {
                 "id": preview_id,
                 "image_path": str(image_path),
-                "character_id": payload.character_id,
+                "model_id": payload.model_id,
                 "is_mock": is_mock,
                 "metadata": {
                     "prompt": payload.prompt,

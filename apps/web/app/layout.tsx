@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/styles/globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "StudioNOVA",
   description:
-    "StudioNOVA · Local-first AI character studio for LoRA training and creative generation.",
+    "StudioNOVA · Local-first AI model studio for LoRA training and creative generation.",
 };
 
 export default function RootLayout({
@@ -35,3 +35,4 @@ export default function RootLayout({
     </html>
   );
 }
+

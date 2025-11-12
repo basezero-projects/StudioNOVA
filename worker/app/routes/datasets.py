@@ -65,7 +65,7 @@ def _count_dataset_items(directory: Path) -> int:
 
 
 class DatasetAddRequest(BaseModel):
-    character_id: str
+    model_id: str
     dataset_path: str
     image_path: str | None = None
     image_data: str | None = None
@@ -85,14 +85,14 @@ def list_datasets():
     return {"root": str(root), "folders": folders}
 
 
-@router.post("/characters/{character_id}/dataset/add")
-def add_dataset_image(character_id: str, body: DatasetAddRequest):
-    if body.character_id and body.character_id != character_id:
-        raise HTTPException(status_code=400, detail="character_id mismatch.")
+@router.post("/models/{model_id}/dataset/add")
+def add_dataset_image(model_id: str, body: DatasetAddRequest):
+    if body.model_id and body.model_id != model_id:
+        raise HTTPException(status_code=400, detail="model_id mismatch.")
 
     dataset_dir = _ensure_dataset_dir(body.dataset_path or "")
 
-    filename = f"{character_id}-{uuid4().hex}.png"
+    filename = f"{model_id}-{uuid4().hex}.png"
     destination = dataset_dir / filename
 
     if body.image_data:
